@@ -1,6 +1,6 @@
 ---
 name: okf-create-node
-description: Create Open Knowledge Format (OKF) bundles and author new concept documents (markdown + YAML frontmatter). Use whenever the user wants to start a knowledge bundle, add a concept, playbook, metric, reference, or table doc to an OKF bundle, or capture new knowledge "in OKF" — even if they just say "add this to the bundle" or "document this as a concept". For converting existing artifacts into OKF use okf-transform; for memory and graph construction use ctg-ai-goe.
+description: Create Open Knowledge Format (OKF) bundles and author new concept documents (markdown + YAML frontmatter). Use whenever the user wants to start a knowledge bundle, add a concept, playbook, metric, reference, or table doc to an OKF bundle, or capture new knowledge "in OKF" — even if they just say "add this to the bundle" or "document this as a concept". For converting existing artifacts into OKF use okf-transform.
 ---
 
 # OKF Create
@@ -82,15 +82,15 @@ Notes that matter:
   uncontrolled tag vocabularies decay into one-tag-per-concept and stop
   working as routing keys. `python3 <suite>/okf.py tags <bundle>` (okf-validate; `<suite>` is the install root — `${CLAUDE_PLUGIN_ROOT}` for Claude plugin installs, the repo clone for Codex) checks
   compliance. Where registry entries carry criteria ("earns this label
-  when…", per ctg-ai-goe's okf-lexicon), labeling is rubric application: for
+  when…"), labeling is rubric application: for
   non-obvious assignments note which criterion the concept meets.
-  Establishing or revising the registry itself is ctg-ai-goe's okf-lexicon job,
+  Establishing or revising the registry itself is a governance act,
   not an authoring-time side effect.
 - **Aliases: declare naming variants at write time.** If the thing this
   concept describes goes by other names (a working title, an
   abbreviation, a name another extraction used), list them in
   frontmatter `aliases: [<variant>, …]` — they join the routing surface
-  for GoE recall and audit joins, labeled there as alias-mediated. Rules: a
+  for downstream retrieval and joins, labeled there as alias-mediated. Rules: a
   variant names *this exact thing* (same referent — a broader or
   narrower term is a link or a tag, never an alias), and no variant may
   duplicate another concept's alias or shadow its id. Symbol-level equivalences not
@@ -100,10 +100,10 @@ Notes that matter:
   replaces an existing one, declare it —
   `supersedes: [/path/to/old-concept.md]` (bundle-absolute paths, list
   form). "Current" is derived from these links, never a status field;
-  GoE recall is current-only by default, and the old concept stays in
+  recall systems typically treat superseded concepts as non-current, and the old concept stays in
   place as walkable history (never delete or stub it). Optional
   `slot: <name>` declares mutual exclusivity: no two *current*
-  concepts may share a slot. ctg-ai-goe owns current/supersession validation. Only
+  concepts may share a slot. Only
   declare a slot where exclusivity is real — most concepts accumulate
   and never conflict.
 - Always write a `description`. Index generation and recall both degrade

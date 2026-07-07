@@ -1,14 +1,13 @@
 ---
 name: okf-validate
-description: Validate, index, and maintain OKF bundle statics: OKF v0.1 conformance, index.md regeneration, broken-link reports, tag inventory/registry checks, type inventory/registry checks, and static HTML visualization. Use whenever the user asks whether an OKF bundle is conformant, navigable, indexed, or statically healthy. For recall, governance, frontier queues, alias lifecycle, supersession/current checks, routing lint, audit, memory, or graph construction, use ctg-ai-goe.
+description: Validate, index, and maintain OKF bundle statics: OKF v0.1 conformance, index.md regeneration, broken-link reports, tag inventory/registry checks, type inventory/registry checks, and static HTML visualization. Use whenever the user asks whether an OKF bundle is conformant, navigable, indexed, or statically healthy, or after any other skill has mutated a bundle.
 ---
 
 # OKF Validate
 
-Keep an OKF bundle conformant and navigable. OKF owns **statics**:
-what a valid bundle is. GoE owns **dynamics**: construction, recall,
-trust, identity lifecycle, supersession/current, frontier queues, and
-memory protocols.
+Keep an OKF bundle conformant and navigable. This suite covers
+**statics** — what a valid bundle is: format conformance, indexes,
+links, tag/type inventories, and visualization.
 
 The deterministic statics tools live at the suite root — `<suite>` is the install root (`${CLAUDE_PLUGIN_ROOT}` for Claude plugin installs, the repo clone path for Codex):
 
@@ -24,25 +23,7 @@ python3 <suite>/okf.py types    <bundle> --taxonomy <file>
 python3 <suite>/viz.py <bundle> [--out <path>] [--name <title>]
 ```
 
-The full spec is vendored at `spec/SPEC.md`. The statics/dynamics
-boundary is: **OKF defines statics; GoE is dynamics.**
-
-## What Moved To GoE
-
-These are intentionally not in this skill or repo:
-
-- recall/rank, demand logging, and evidence-weighted retrieval
-- govern/trust posture and ratified-authority build gates
-- frontier and queues
-- alias registry guards and alias proposal lifecycle
-- current/supersession alignment checks and conflict candidates
-- routing-surface lint
-- corpus audit, local graph extraction, memory, onboarding, and graph
-  construction
-
-Use `ctg-ai-goe` for those commands and skills:
-`okf-audit`, `okf-build-graph`, `okf-lexicon`, `okf-memory`, and
-`okf-onboard`.
+The full spec is vendored at `spec/SPEC.md`.
 
 ## Interpreting Results
 
@@ -90,5 +71,5 @@ python3 <suite>/okf.py types <bundle>
 python3 <suite>/okf.py tags <bundle>
 ```
 
-If the user also asks about recall quality, governance, identity,
-currentness, coverage, or memory behavior, hand off to `ctg-ai-goe`.
+Recall quality, governance, identity, currentness, coverage, and
+memory behavior are out of this suite's scope.

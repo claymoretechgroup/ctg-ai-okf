@@ -1,6 +1,6 @@
 ---
 name: okf-transform
-description: Convert existing artifacts (design docs, specs, READMEs, code, notes, meeting/conversation summaries) into OKF concept documents, and restructure existing OKF bundles (move, rename, split, merge concepts and rewrite links). Use whenever the user wants to "OKF-ify" something, import or ingest content into a knowledge bundle, migrate docs to OKF, or reorganize a bundle's layout. For authoring brand-new concepts use okf-create-node; for memory and graph construction use ctg-ai-goe.
+description: Convert existing artifacts (design docs, specs, READMEs, code, notes, meeting/conversation summaries) into OKF concept documents, and restructure existing OKF bundles (move, rename, split, merge concepts and rewrite links). Use whenever the user wants to "OKF-ify" something, import or ingest content into a knowledge bundle, migrate docs to OKF, or reorganize a bundle's layout. For authoring brand-new concepts use okf-create-node.
 ---
 
 # OKF Transform

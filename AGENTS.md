@@ -19,7 +19,5 @@ delta-synced with receipts:
 python3 test/run.py
 ```
 
-Acceptance means all Python statics commands byte-match the old
-verification receipts. Dynamics are outside this product: use
-`ctg-ai-goe` for recall, governance, frontier queues, alias/current,
-audit, memory, and onboarding.
+Acceptance means all Python commands byte-match the verification
+receipts committed under `test/receipts/`.

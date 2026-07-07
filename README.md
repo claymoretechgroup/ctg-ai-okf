@@ -1,11 +1,9 @@
 # CTG AI OKF
 
-Generic Open Knowledge Format statics for Claude and Codex.
-
-OKF defines **statics**: what a valid knowledge bundle is. GoE is
-**dynamics**: construction, learning, trust, retrieval, alias lifecycle,
-frontier queues, currentness, audit, and memory. Dependency direction:
-GoE depends on OKF tooling; OKF does not depend on GoE.
+Open Knowledge Format tooling for LLM coding agents (Claude and
+Codex): everything an agent needs to create, transform, validate,
+index, and visualize OKF knowledge bundles — plain markdown + YAML
+frontmatter, zero dependencies, fully standalone.
 
 ## Contents
 
@@ -76,24 +74,10 @@ are plain markdown instructions, tools run by path from the clone
 
 **Requirements**: Python ≥ 3.9; zero dependencies.
 
-## What Lives In GoE
-
-Use `ctg-ai-goe` for dynamics:
-
-- `rank`, `govern`, `frontier`, `queues`
-- `alias`, `current`, routing `lint`
-- audit/join/extraction/proposers/eval
-- `okf-audit`, `okf-build-graph`, `okf-lexicon`, `okf-memory`,
-  `okf-onboard`
-
-OKF remains the plain Markdown + YAML-frontmatter contract those tools
-read and write.
-
 ## Migration
 
-`ctg-claude-okf-skills` is the pre-split ancestor and is left as-is. This
-repo is the canonical home for the three OKF statics skills and tools.
-The dynamic skills now ship from `ctg-ai-goe`.
+`ctg-claude-okf-skills` is the superseded ancestor and is left as-is.
+This repo is the canonical home for the OKF skills and tools.
 
 Compatibility facts:
 
@@ -101,8 +85,7 @@ Compatibility facts:
 - Skill names are unchanged: `okf-create-node`, `okf-transform`,
   `okf-validate`.
 - Hardcoded paths to `ctg-claude-okf-skills`, `okf.mjs`, or `viz.mjs`
-  should move to this repo's `okf.py` / `viz.py` for statics, or to
-  `ctg-ai-goe` for dynamics.
+  should move to this repo's `okf.py` / `viz.py`.
 
 ## Tests
 
