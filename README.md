@@ -5,42 +5,82 @@ Codex): everything an agent needs to create, transform, validate,
 index, and visualize OKF knowledge bundles — plain markdown + YAML
 frontmatter, zero dependencies, fully standalone.
 
-## Contents
+**Why**: agents forget everything between sessions, and project
+knowledge scattered across READMEs, notes, and chat logs is neither
+navigable nor checkable. An OKF bundle is a knowledge base that lives
+in your repo as ordinary files — diffable, greppable, reviewable in a
+PR — with enough structure that tools can verify its health instead
+of taking it on faith.
 
-- `okf.py` — zero-dependency Python 3 statics commands:
-  `validate`, `links`, `index`, `types`, and `tags`.
-- `viz.py` — zero-dependency Python 3 HTML graph visualizer.
-- `skills/` — agent-neutral statics skills, the ONE copy read by both
-  models: `okf-create-node`, `okf-transform`, `okf-validate`. In a
-  SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
-  for Claude plugin installs, the repo clone path for Codex).
-- `spec/` — vendored Open Knowledge Format v0.1 specification.
-- `test/` — fixture bundles plus the byte-parity receipts the
-  acceptance suite verifies against.
-- `.claude-plugin/` — Claude wiring (`/plugin marketplace add` this
-  repo, `/plugin install okf`; skills load from `./skills`).
-- `AGENTS.md` — the Codex contract (install = clone the repo).
+## What is an OKF bundle?
 
-## CLI
+A **bundle** is a directory of markdown files. Each file is one
+**concept** — one idea, decision, finding, playbook, or reference —
+with YAML frontmatter carrying its metadata:
 
-```bash
-python3 okf.py validate <bundle>
-python3 okf.py links <bundle>
-python3 okf.py index <bundle> [--write]
-python3 okf.py types <bundle> [--taxonomy <file>]
-python3 okf.py tags <bundle> [--registry <file>]
-python3 viz.py <bundle> [--out <path>] [--name <title>]
+```markdown
+---
+title: Use SQLite for the job queue
+type: Decision
+tags: [architecture, persistence]
+description: Why the job queue is SQLite rather than Redis.
+---
+We chose SQLite because … Standard markdown links to
+[related concepts](/decisions/related-concept.md) weave the bundle
+into a navigable graph.
 ```
 
-`validate` exits 1 on conformance violations. `links` is informational:
-broken internal links are tolerated by OKF §5.3 because they may mark
-not-yet-written knowledge. `types` and `tags` exit 1 when a registry is
-present and the bundle uses unregistered values.
+Directories group concepts by kind (`decisions/`, `findings/`,
+`ideas/`, …); each directory carries an `index.md` so the bundle is
+browsable; internal markdown links make it a graph. The full
+specification is vendored at [spec/SPEC.md](spec/SPEC.md) (OKF v0.1).
+
+## The skills
+
+Three skills cover the write / restructure / verify lifecycle. After
+install they trigger on natural requests — you talk about knowledge,
+the skill handles the format:
+
+| Skill | What it does | Say things like |
+|---|---|---|
+| **okf-create-node** | Starts new bundles and authors new concepts from scratch — correct frontmatter, the right directory, index and log kept current as part of the write. | "start a knowledge bundle", "add this decision to the bundle", "document this as a concept" |
+| **okf-transform** | Ingests *existing* artifacts (design docs, specs, READMEs, meeting notes) into a bundle, and restructures bundles — move, rename, split, merge, with every internal link rewritten. | "OKF-ify this design doc", "import these notes into the bundle", "split this concept in two" |
+| **okf-validate** | The health check: spec conformance, stale indexes, broken links, tag/type inventory against the bundle's registries, and the HTML graph view. Run after anything mutates a bundle. | "is the bundle healthy?", "validate and reindex", "show me the graph" |
+
+The skills are agent-neutral markdown — Claude loads them through the
+plugin; Codex reads the same files per [AGENTS.md](AGENTS.md). In a
+SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
+for Claude plugin installs, the repo clone path for Codex).
+
+## The tools
+
+Two zero-dependency Python 3 programs the skills run underneath —
+equally usable by hand or in CI:
+
+```bash
+python3 okf.py validate <bundle>   # spec conformance (§9): parseable frontmatter,
+                                   #   required fields, reserved-name rules — exit 1 on violations
+python3 okf.py index <bundle>      # which index.md files are stale (--write regenerates them)
+python3 okf.py links <bundle>      # broken internal links, informational — OKF §5.3 tolerates
+                                   #   them as markers for not-yet-written knowledge
+python3 okf.py types <bundle>      # every `type:` in use; with a taxonomy file (--taxonomy or
+                                   #   the bundle's own), exit 1 on unregistered types
+python3 okf.py tags <bundle>       # every tag in use; with a registry (--registry or the
+                                   #   bundle's own), exit 1 on unregistered tags
+python3 viz.py <bundle>            # self-contained HTML graph view of the bundle — concepts as
+                                   #   nodes, links as edges (--out <path>, --name <title>)
+```
+
+`validate` is the hard gate — wire it into CI if the bundle matters.
+`types` and `tags` keep vocabularies controlled so labels stay useful
+as routing keys instead of decaying into one-tag-per-concept. `viz`
+renders a single HTML file with no external assets — open it in any
+browser.
 
 ## Install
 
 **Claude Code** — the repo is its own marketplace; the plugin ships
-the three statics skills (loaded from `skills/`, see
+the three skills (loaded from `skills/`, see
 `.claude-plugin/plugin.json`) plus the tools:
 
 ```
@@ -55,11 +95,11 @@ claude plugin marketplace add <path>/ctg-ai-okf
 claude plugin install okf@ctg-ai-okf --scope user
 ```
 
-The plugin installs the whole repo; inside a SKILL.md, `<suite>`
-resolves to `${CLAUDE_PLUGIN_ROOT}` (the installed repo root), so
-skills reach `<suite>/okf.py` and `<suite>/viz.py` with no further
-setup. Installing by copying skill dirs into `~/.claude/skills/` is
-NOT supported — the skills need the tools shipped alongside them.
+The plugin installs the whole repo; `<suite>` resolves to
+`${CLAUDE_PLUGIN_ROOT}` (the installed repo root), so skills reach
+`<suite>/okf.py` and `<suite>/viz.py` with no further setup.
+Installing by copying skill dirs into `~/.claude/skills/` is NOT
+supported — the skills need the tools shipped alongside them.
 
 To update after the repo changes: `claude plugin marketplace update
 ctg-ai-okf` (local marketplaces also need a `git pull` in the clone
@@ -71,6 +111,34 @@ are plain markdown instructions, tools run by path from the clone
 
 **Requirements**: Python ≥ 3.9; zero dependencies.
 
+## Onboarding a project
+
+Install once (above), then per project:
+
+1. **Start the bundle.** In the project, ask your agent to *"start a
+   knowledge bundle in `knowledge/`"* (okf-create-node initializes
+   the layout), or *"ingest NOTES.md / docs/ into a knowledge
+   bundle"* (okf-transform) if knowledge already exists as prose.
+2. **Tell future sessions it exists.** Skills trigger on how you
+   talk, but a standing pointer makes every session bundle-aware.
+   Add a short block to the project's `CLAUDE.md` (and `AGENTS.md`
+   for Codex):
+
+   ```markdown
+   ## Knowledge base
+
+   `knowledge/` is this repo's knowledge base — an OKF bundle
+   (markdown + YAML frontmatter; start at `knowledge/index.md`).
+   Consult it when working here. Capture durable decisions and
+   findings as concepts (okf-create-node); ingest existing docs
+   with okf-transform; after any bundle change, validate and
+   reindex (okf-validate).
+   ```
+
+3. **Keep it healthy.** End bundle-touching sessions with
+   *"validate the bundle"* — or gate it mechanically in CI:
+   `python3 <suite>/okf.py validate knowledge/`.
+
 ## Tests
 
 ```bash
@@ -80,6 +148,19 @@ python3 test/run.py
 The suite drives the Python tools natively and byte-compares their
 outputs against the individually ledgered receipts in
 `test/receipts/old/`.
+
+## Layout
+
+```
+okf.py           the statics commands (validate/links/index/types/tags)
+viz.py           the HTML graph visualizer
+skills/          the three skills — agent-neutral, the ONE copy read
+                 by both models
+spec/            vendored OKF v0.1 specification
+test/            fixture bundles + byte-parity receipts + run.py
+.claude-plugin/  Claude wiring (marketplace + plugin manifest)
+AGENTS.md        the Codex contract
+```
 
 ## License
 
