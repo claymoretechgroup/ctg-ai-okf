@@ -6,7 +6,7 @@ verbatim (byte-identical, for diffability against upstream) from:
 - Repo: https://github.com/GoogleCloudPlatform/knowledge-catalog
 - Path: `okf/SPEC.md`
 - Pinned at commit: `ba17dd5dfd72d357418966318466d345bf63dcfb` (2026-06-17)
-- License: Apache-2.0 (see `LICENSE.md` in this directory)
+- License: Apache-2.0 (same as this repo — see `LICENSE` at the repo root)
 
 It is vendored here because this spec is the contract the skills in this
 repo implement — the suite must be self-contained and pin the exact spec
