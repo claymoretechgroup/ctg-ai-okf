@@ -1,0 +1,67 @@
+fixture	command	exit	stdout	artifact
+adjacency/corpus	validate	1	adjacency__corpus__validate.out	
+adjacency/corpus	links	0	adjacency__corpus__links.out	
+adjacency/corpus	index	0	adjacency__corpus__index.out	
+adjacency/corpus	types	0	adjacency__corpus__types.out	
+adjacency/corpus	tags	0	adjacency__corpus__tags.out	
+adjacency/corpus	viz	0	adjacency__corpus__viz.out	adjacency__corpus__viz.html
+alias-guards/bundle-bad	validate	0	alias-guards__bundle-bad__validate.out	
+alias-guards/bundle-bad	links	0	alias-guards__bundle-bad__links.out	
+alias-guards/bundle-bad	index	0	alias-guards__bundle-bad__index.out	
+alias-guards/bundle-bad	types	0	alias-guards__bundle-bad__types.out	
+alias-guards/bundle-bad	tags	0	alias-guards__bundle-bad__tags.out	
+alias-guards/bundle-bad	viz	0	alias-guards__bundle-bad__viz.out	alias-guards__bundle-bad__viz.html
+alias-guards/bundle-good	validate	0	alias-guards__bundle-good__validate.out	
+alias-guards/bundle-good	links	0	alias-guards__bundle-good__links.out	
+alias-guards/bundle-good	index	0	alias-guards__bundle-good__index.out	
+alias-guards/bundle-good	types	0	alias-guards__bundle-good__types.out	
+alias-guards/bundle-good	tags	0	alias-guards__bundle-good__tags.out	
+alias-guards/bundle-good	viz	0	alias-guards__bundle-good__viz.out	alias-guards__bundle-good__viz.html
+alignment/bundle-bad	validate	0	alignment__bundle-bad__validate.out	
+alignment/bundle-bad	links	0	alignment__bundle-bad__links.out	
+alignment/bundle-bad	index	0	alignment__bundle-bad__index.out	
+alignment/bundle-bad	types	0	alignment__bundle-bad__types.out	
+alignment/bundle-bad	tags	0	alignment__bundle-bad__tags.out	
+alignment/bundle-bad	viz	0	alignment__bundle-bad__viz.out	alignment__bundle-bad__viz.html
+alignment/bundle-good	validate	0	alignment__bundle-good__validate.out	
+alignment/bundle-good	links	0	alignment__bundle-good__links.out	
+alignment/bundle-good	index	0	alignment__bundle-good__index.out	
+alignment/bundle-good	types	0	alignment__bundle-good__types.out	
+alignment/bundle-good	tags	0	alignment__bundle-good__tags.out	
+alignment/bundle-good	viz	0	alignment__bundle-good__viz.out	alignment__bundle-good__viz.html
+alignment/bundle-inherit	validate	0	alignment__bundle-inherit__validate.out	
+alignment/bundle-inherit	links	0	alignment__bundle-inherit__links.out	
+alignment/bundle-inherit	index	0	alignment__bundle-inherit__index.out	
+alignment/bundle-inherit	types	0	alignment__bundle-inherit__types.out	
+alignment/bundle-inherit	tags	0	alignment__bundle-inherit__tags.out	
+alignment/bundle-inherit	viz	0	alignment__bundle-inherit__viz.out	alignment__bundle-inherit__viz.html
+frontier/bundle	validate	0	frontier__bundle__validate.out	
+frontier/bundle	links	0	frontier__bundle__links.out	
+frontier/bundle	index	0	frontier__bundle__index.out	
+frontier/bundle	types	0	frontier__bundle__types.out	
+frontier/bundle	tags	0	frontier__bundle__tags.out	
+frontier/bundle	viz	0	frontier__bundle__viz.out	frontier__bundle__viz.html
+govern/bundle-absent	validate	0	govern__bundle-absent__validate.out	
+govern/bundle-absent	links	0	govern__bundle-absent__links.out	
+govern/bundle-absent	index	0	govern__bundle-absent__index.out	
+govern/bundle-absent	types	0	govern__bundle-absent__types.out	
+govern/bundle-absent	tags	0	govern__bundle-absent__tags.out	
+govern/bundle-absent	viz	0	govern__bundle-absent__viz.out	govern__bundle-absent__viz.html
+govern/bundle-proposed	validate	0	govern__bundle-proposed__validate.out	
+govern/bundle-proposed	links	0	govern__bundle-proposed__links.out	
+govern/bundle-proposed	index	0	govern__bundle-proposed__index.out	
+govern/bundle-proposed	types	1	govern__bundle-proposed__types.out	
+govern/bundle-proposed	tags	0	govern__bundle-proposed__tags.out	
+govern/bundle-proposed	viz	0	govern__bundle-proposed__viz.out	govern__bundle-proposed__viz.html
+govern/bundle-ratified	validate	0	govern__bundle-ratified__validate.out	
+govern/bundle-ratified	links	0	govern__bundle-ratified__links.out	
+govern/bundle-ratified	index	0	govern__bundle-ratified__index.out	
+govern/bundle-ratified	types	1	govern__bundle-ratified__types.out	
+govern/bundle-ratified	tags	0	govern__bundle-ratified__tags.out	
+govern/bundle-ratified	viz	0	govern__bundle-ratified__viz.out	govern__bundle-ratified__viz.html
+join-exclusion/bundle	validate	0	join-exclusion__bundle__validate.out	
+join-exclusion/bundle	links	0	join-exclusion__bundle__links.out	
+join-exclusion/bundle	index	0	join-exclusion__bundle__index.out	
+join-exclusion/bundle	types	0	join-exclusion__bundle__types.out	
+join-exclusion/bundle	tags	0	join-exclusion__bundle__tags.out	
+join-exclusion/bundle	viz	0	join-exclusion__bundle__viz.out	join-exclusion__bundle__viz.html

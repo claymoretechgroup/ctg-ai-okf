@@ -1,0 +1,5 @@
+stale  index.md
+stale  audit-reports/index.md
+stale  scratch/index.md
+
+run with --write to apply

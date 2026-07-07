@@ -1,0 +1,15 @@
+{
+  "name": "ctg-ai-okf",
+  "owner": {
+    "name": "Claymore Technology Group",
+    "email": "github@claymoretechgroup.com"
+  },
+  "description": "OKF statics for coding agents: okf-create-node, okf-transform, okf-validate, plus zero-dependency Python OKF tools and visualizer.",
+  "plugins": [
+    {
+      "name": "okf",
+      "source": "./",
+      "description": "The OKF statics suite: okf-create-node, okf-transform, okf-validate, okf.py, and viz.py."
+    }
+  ]
+}

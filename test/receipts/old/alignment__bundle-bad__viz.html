@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>bundle-bad — OKF bundle</title>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; display: flex; height: 100vh; }
+  #side { width: 230px; min-width: 230px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fafafa; }
+  #side h1 { font-size: 15px; margin: 0 0 4px; }
+  #side .meta { color: #777; font-size: 12px; margin-bottom: 10px; }
+  #search { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }
+  .typerow { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 13px; cursor: pointer; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  #fit { margin-top: 10px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+  #cy { flex: 1; min-width: 0; }
+  #detail { width: 420px; min-width: 320px; border-left: 1px solid #ddd; padding: 16px; overflow-y: auto; }
+  #detail .placeholder { color: #999; margin-top: 40%; text-align: center; }
+  #detail h2 { margin: 0 0 2px; font-size: 18px; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; color: #fff; margin-right: 6px; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: #eee; color: #555; margin: 0 4px 4px 0; }
+  .cid { color: #999; font-size: 12px; font-family: monospace; margin-bottom: 6px; }
+  .desc { color: #444; font-style: italic; margin: 6px 0 10px; }
+  .res a { font-size: 12px; word-break: break-all; }
+  #body { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #body table { border-collapse: collapse; font-size: 12px; }
+  #body th, #body td { border: 1px solid #ddd; padding: 3px 7px; text-align: left; }
+  #body pre { background: #f5f5f5; padding: 8px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+  #body code { background: #f5f5f5; font-size: 12px; }
+  #body a { color: #2a6fb0; }
+  #backlinks { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #backlinks h3 { font-size: 13px; margin: 0 0 6px; color: #666; }
+  #backlinks a { display: block; font-size: 13px; margin: 2px 0; color: #2a6fb0; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1 id="bname"></h1>
+  <div class="meta" id="bmeta"></div>
+  <input id="search" placeholder="search title / id / tags…">
+  <div id="types"></div>
+  <button id="fit">Fit graph</button>
+</div>
+<div id="cy"></div>
+<div id="detail"><div class="placeholder">Select a concept</div></div>
+<script>
+var DATA = {"name":"bundle-bad","types":["Decision","Idea"],"colors":{"Decision":"#4e79a7","Idea":"#f28e2b"},"nodes":[{"id":"decisions/alias-rejections","type":"Decision","title":"Rejections (alignment bad fixture)","description":"Coexist verdict that the supersession above contradicts.","tags":[],"resource":"","timestamp":"","body":"\n```yaml\n# okf-alias-rejections\n- kind: concept\n  a: ideas/coexist-x\n  b: ideas/coexist-y\n  verdict: coexist\n  reason: fixture; judged non-conflicting\n```\n"},{"id":"ideas/coexist-x","type":"Idea","title":"Coexist X","description":"Supersedes Y despite a coexist verdict in the ledger.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"},{"id":"ideas/coexist-y","type":"Idea","title":"Coexist Y","description":"Judged to coexist with X.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"},{"id":"ideas/cycle-a","type":"Idea","title":"Cycle A","description":"Supersedes B, which supersedes A — the acyclicity check must fire.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"},{"id":"ideas/cycle-b","type":"Idea","title":"Cycle B","description":"Half of the cycle.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"},{"id":"ideas/dangler","type":"Idea","title":"Dangler","description":"Supersedes a concept that does not exist, and itself.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"},{"id":"ideas/slot-one","type":"Idea","title":"Slot One","description":"Claims the same slot as slot-two while both are current.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"},{"id":"ideas/slot-two","type":"Idea","title":"Slot Two","description":"Claims the same slot as slot-one while both are current.","tags":[],"resource":"","timestamp":"","body":"Fixture.\n"}],"edges":[]};
+document.getElementById('bname').textContent = DATA.name;
+document.getElementById('bmeta').textContent = DATA.nodes.length + ' concepts · ' + DATA.edges.length + ' links';
+
+var nodeById = {};
+DATA.nodes.forEach(function (n) { nodeById[n.id] = n; });
+var inbound = {};
+DATA.edges.forEach(function (e) { (inbound[e.target] = inbound[e.target] || []).push(e.source); });
+
+var cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: DATA.nodes.map(function (n) {
+    return { data: { id: n.id, label: n.title, type: n.type } };
+  }).concat(DATA.edges.map(function (e) {
+    return { data: { id: e.source + '->' + e.target, source: e.source, target: e.target } };
+  })),
+  style: [
+    { selector: 'node', style: {
+        'label': 'data(label)', 'font-size': 8, 'width': 16, 'height': 16,
+        'text-wrap': 'wrap', 'text-max-width': 90, 'text-valign': 'bottom', 'text-margin-y': 3,
+        'color': '#333', 'background-color': '#999' } },
+    { selector: 'edge', style: {
+        'width': 1, 'line-color': '#ccc', 'target-arrow-color': '#ccc',
+        'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier' } },
+    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#1a1a2e' } },
+    { selector: '.dim', style: { 'opacity': 0.12 } },
+    { selector: '.hide', style: { 'display': 'none' } }
+  ].concat(DATA.types.map(function (t) {
+    return { selector: 'node[type="' + t.replace(/"/g, '\\"') + '"]',
+             style: { 'background-color': DATA.colors[t] } };
+  })),
+  layout: { name: 'cose', animate: false, nodeRepulsion: 9000, idealEdgeLength: 60 }
+});
+
+// type filter
+var typesEl = document.getElementById('types');
+DATA.types.forEach(function (t) {
+  var row = document.createElement('label');
+  row.className = 'typerow';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = true;
+  cb.addEventListener('change', applyFilters);
+  var sw = document.createElement('span');
+  sw.className = 'swatch'; sw.style.background = DATA.colors[t];
+  var count = DATA.nodes.filter(function (n) { return n.type === t; }).length;
+  row.appendChild(cb); row.appendChild(sw);
+  row.appendChild(document.createTextNode(t + ' (' + count + ')'));
+  row.dataset.type = t;
+  typesEl.appendChild(row);
+});
+
+function applyFilters() {
+  var enabled = {};
+  Array.prototype.forEach.call(typesEl.children, function (row) {
+    enabled[row.dataset.type] = row.querySelector('input').checked;
+  });
+  var q = document.getElementById('search').value.trim().toLowerCase();
+  cy.nodes().forEach(function (el) {
+    var n = nodeById[el.id()];
+    el.toggleClass('hide', !enabled[n.type]);
+    var match = !q || n.id.toLowerCase().indexOf(q) >= 0 ||
+      n.title.toLowerCase().indexOf(q) >= 0 ||
+      n.description.toLowerCase().indexOf(q) >= 0 ||
+      n.tags.join(' ').toLowerCase().indexOf(q) >= 0;
+    el.toggleClass('dim', !match);
+  });
+}
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('fit').addEventListener('click', function () { cy.fit(undefined, 30); });
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function targetIdOf(href, fromId) {
+  if (!href || /^[a-z][a-z0-9+.-]*:/i.test(href) || href.charAt(0) === '#') return null;
+  var path = href.split('#')[0].replace(/\.md$/, '');
+  if (path.charAt(0) === '/') path = path.slice(1);
+  else {
+    var base = fromId.indexOf('/') >= 0 ? fromId.slice(0, fromId.lastIndexOf('/')).split('/') : [];
+    var parts = path.split('/');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === '..') base.pop();
+      else if (parts[i] !== '.') base.push(parts[i]);
+    }
+    path = base.join('/');
+  }
+  return nodeById[path] ? path : null;
+}
+
+function show(id) {
+  var n = nodeById[id];
+  var d = document.getElementById('detail');
+  var html = '<h2>' + esc(n.title) + '</h2><div class="cid">' + esc(n.id) + '</div>' +
+    '<span class="chip" style="background:' + DATA.colors[n.type] + '">' + esc(n.type) + '</span>' +
+    (n.timestamp ? '<span style="font-size:11px;color:#999">' + esc(n.timestamp) + '</span>' : '') +
+    (n.description ? '<div class="desc">' + esc(n.description) + '</div>' : '') +
+    (n.tags.length ? '<div>' + n.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+    (n.resource ? '<div class="res">resource: <a href="' + esc(n.resource) + '" target="_blank" rel="noopener">' + esc(n.resource) + '</a></div>' : '') +
+    '<div id="body"></div><div id="backlinks"></div>';
+  d.innerHTML = html;
+  var bodyEl = d.querySelector('#body');
+  if (window.marked) bodyEl.innerHTML = marked.parse(n.body);
+  else bodyEl.innerHTML = '<pre>' + esc(n.body) + '</pre>';
+  // rewire internal links to in-viewer navigation
+  Array.prototype.forEach.call(bodyEl.querySelectorAll('a'), function (a) {
+    var tid = targetIdOf(a.getAttribute('href'), n.id);
+    if (tid) {
+      a.addEventListener('click', function (ev) { ev.preventDefault(); select(tid); });
+      a.removeAttribute('target');
+    } else if (/^[a-z][a-z0-9+.-]*:/i.test(a.getAttribute('href') || '')) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+    } else {
+      a.replaceWith.apply(a, a.childNodes); // unresolvable local link → plain text
+    }
+  });
+  var back = inbound[id] || [];
+  var bl = d.querySelector('#backlinks');
+  bl.innerHTML = '<h3>Linked from (' + back.length + ')</h3>';
+  back.sort().forEach(function (src) {
+    var a = document.createElement('a');
+    a.textContent = nodeById[src].title + ' — ' + src;
+    a.addEventListener('click', function () { select(src); });
+    bl.appendChild(a);
+  });
+}
+
+function select(id) {
+  cy.elements().unselect();
+  var el = cy.getElementById(id);
+  el.select();
+  cy.animate({ center: { eles: el }, duration: 200 });
+  show(id);
+}
+
+cy.on('tap', 'node', function (ev) { show(ev.target.id()); });
+</script>
+</body>
+</html>

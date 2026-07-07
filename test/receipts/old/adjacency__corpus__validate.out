@@ -1,0 +1,4 @@
+VIOLATION: a.md: concept document has no frontmatter block (SPEC §9.1)
+VIOLATION: b.md: concept document has no frontmatter block (SPEC §9.1)
+
+2 violation(s), 0 warning(s)

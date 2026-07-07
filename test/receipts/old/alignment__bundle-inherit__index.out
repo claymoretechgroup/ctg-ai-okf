@@ -1,0 +1,4 @@
+stale  index.md
+stale  ideas/index.md
+
+run with --write to apply

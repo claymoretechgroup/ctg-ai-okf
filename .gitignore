@@ -1,0 +1,28 @@
+# AI
+.claude/
+.agents/
+.codex/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Python
+.env
+__pycache__/
+*.pyc
+.venv/
+dist/
+*.egg-info/
+
+# Test scratch
+test/tmp/
