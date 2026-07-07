@@ -35,48 +35,6 @@ Directories group concepts by kind (`decisions/`, `findings/`,
 browsable; internal markdown links make it a graph. The full
 specification is vendored at [spec/SPEC.md](spec/SPEC.md) (OKF v0.1).
 
-## The skills
-
-Three skills cover the write / restructure / verify lifecycle. After
-install they trigger on natural requests — you talk about knowledge,
-the skill handles the format:
-
-| Skill | What it does | Say things like |
-|---|---|---|
-| **okf-create-node** | Starts new bundles and authors new concepts from scratch — correct frontmatter, the right directory, index and log kept current as part of the write. | "start a knowledge bundle", "add this decision to the bundle", "document this as a concept" |
-| **okf-transform** | Ingests *existing* artifacts (design docs, specs, READMEs, meeting notes) into a bundle, and restructures bundles — move, rename, split, merge, with every internal link rewritten. | "OKF-ify this design doc", "import these notes into the bundle", "split this concept in two" |
-| **okf-validate** | The health check: spec conformance, stale indexes, broken links, tag/type inventory against the bundle's registries, and the HTML graph view. Run after anything mutates a bundle. | "is the bundle healthy?", "validate and reindex", "show me the graph" |
-
-The skills are agent-neutral markdown — Claude loads them through the
-plugin; Codex reads the same files per [AGENTS.md](AGENTS.md). In a
-SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
-for Claude plugin installs, the repo clone path for Codex).
-
-## The tools
-
-Two zero-dependency Python 3 programs the skills run underneath —
-equally usable by hand or in CI:
-
-```bash
-python3 okf.py validate <bundle>   # spec conformance (§9): parseable frontmatter,
-                                   #   required fields, reserved-name rules — exit 1 on violations
-python3 okf.py index <bundle>      # which index.md files are stale (--write regenerates them)
-python3 okf.py links <bundle>      # broken internal links, informational — OKF §5.3 tolerates
-                                   #   them as markers for not-yet-written knowledge
-python3 okf.py types <bundle>      # every `type:` in use; with a taxonomy file (--taxonomy or
-                                   #   the bundle's own), exit 1 on unregistered types
-python3 okf.py tags <bundle>       # every tag in use; with a registry (--registry or the
-                                   #   bundle's own), exit 1 on unregistered tags
-python3 viz.py <bundle>            # self-contained HTML graph view of the bundle — concepts as
-                                   #   nodes, links as edges (--out <path>, --name <title>)
-```
-
-`validate` is the hard gate — wire it into CI if the bundle matters.
-`types` and `tags` keep vocabularies controlled so labels stay useful
-as routing keys instead of decaying into one-tag-per-concept. `viz`
-renders a single HTML file with no external assets — open it in any
-browser.
-
 ## Install
 
 **Claude Code** — the repo is its own marketplace; the plugin ships
@@ -139,6 +97,37 @@ python3 test/run.py
 The suite drives the Python tools natively and byte-compares their
 outputs against the individually ledgered receipts in
 `test/receipts/old/`.
+
+## The skills
+
+Three skills cover the write / restructure / verify lifecycle. After
+install they trigger on natural requests — you talk about knowledge,
+the skill handles the format:
+
+| Skill | What it does | Say things like |
+|---|---|---|
+| **okf-create-node** | Starts new bundles and authors new concepts from scratch — correct frontmatter, the right directory, index and log kept current as part of the write. Initializing a bundle includes wiring the project's `CLAUDE.md`/`AGENTS.md`. | "start a knowledge bundle", "add this decision to the bundle", "document this as a concept" |
+| **okf-transform** | Ingests *existing* artifacts (design docs, specs, READMEs, meeting notes) into a bundle, and restructures bundles — move, rename, split, merge, with every internal link rewritten. | "OKF-ify this design doc", "import these notes into the bundle", "split this concept in two" |
+| **okf-validate** | The health check: spec conformance, stale indexes, broken links, tag/type inventory against the bundle's registries, and the HTML graph view. Run after anything mutates a bundle; installs the pre-commit/CI gate on request. | "is the bundle healthy?", "validate and reindex", "gate the bundle", "show me the graph" |
+
+The skills are agent-neutral markdown — Claude loads them through the
+plugin; Codex reads the same files per [AGENTS.md](AGENTS.md). In a
+SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
+for Claude plugin installs, the repo clone path for Codex).
+
+## The tools
+
+Two zero-dependency Python 3 programs the skills run underneath —
+equally usable by hand or in CI:
+
+| Command | What it does | Why / when |
+|---|---|---|
+| `python3 okf.py validate <bundle>` | Spec conformance (§9): parseable frontmatter, required fields, reserved-name rules. **Exit 1 on violations.** | The hard gate — wire it into CI or a pre-commit hook if the bundle matters. |
+| `python3 okf.py index <bundle> [--write]` | Reports stale `index.md` files; `--write` regenerates them. | Run after adding or moving concepts so the bundle stays browsable. |
+| `python3 okf.py links <bundle>` | Lists broken internal links. Informational, always exit 0. | OKF §5.3 tolerates broken links as markers for not-yet-written knowledge — review, don't auto-fix. |
+| `python3 okf.py types <bundle> [--taxonomy <file>]` | Inventories every `type:` in use; with a taxonomy (given or the bundle's own), exit 1 on unregistered types. | Keeps the type vocabulary controlled so consumers can filter and route on it. |
+| `python3 okf.py tags <bundle> [--registry <file>]` | Inventories every tag in use; with a registry (given or the bundle's own), exit 1 on unregistered tags. | Keeps labels useful as routing keys instead of decaying into one-tag-per-concept. |
+| `python3 viz.py <bundle> [--out <path>] [--name <title>]` | Renders the bundle as an interactive graph — concepts as nodes, links as edges. | Single self-contained HTML file, no external assets — open it in any browser. |
 
 ## Layout
 
