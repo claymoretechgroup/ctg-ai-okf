@@ -15,14 +15,11 @@ frontmatter, zero dependencies, fully standalone.
   SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
   for Claude plugin installs, the repo clone path for Codex).
 - `spec/` — vendored Open Knowledge Format v0.1 specification.
-- `test/` — copied fixture bundles plus byte-parity receipts from the
-  former JavaScript tools.
+- `test/` — fixture bundles plus the byte-parity receipts the
+  acceptance suite verifies against.
 - `.claude-plugin/` — Claude wiring (`/plugin marketplace add` this
   repo, `/plugin install okf`; skills load from `./skills`).
 - `AGENTS.md` — the Codex contract (install = clone the repo).
-
-No `.mjs` files ship in this repo. The old JavaScript tools are retained
-only as local verification twins in the superseded ancestor repo.
 
 ## CLI
 
@@ -74,19 +71,6 @@ are plain markdown instructions, tools run by path from the clone
 
 **Requirements**: Python ≥ 3.9; zero dependencies.
 
-## Migration
-
-`ctg-claude-okf-skills` is the superseded ancestor and is left as-is.
-This repo is the canonical home for the OKF skills and tools.
-
-Compatibility facts:
-
-- Bundles are untouched. Existing OKF Markdown remains valid.
-- Skill names are unchanged: `okf-create-node`, `okf-transform`,
-  `okf-validate`.
-- Hardcoded paths to `ctg-claude-okf-skills`, `okf.mjs`, or `viz.mjs`
-  should move to this repo's `okf.py` / `viz.py`.
-
 ## Tests
 
 ```bash
@@ -94,5 +78,11 @@ python3 test/run.py
 ```
 
 The suite drives the Python tools natively and byte-compares their
-outputs against individually ledgered old-tool receipts in
+outputs against the individually ledgered receipts in
 `test/receipts/old/`.
+
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE). The vendored specification under
+`spec/` is also Apache-2.0, from its upstream (see
+[spec/NOTICE.md](spec/NOTICE.md)).

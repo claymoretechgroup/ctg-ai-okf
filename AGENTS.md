@@ -1,8 +1,7 @@
 # OKF — Codex Notes
 
 The product tree is Python-only: instruments run as
-`python3 okf.py` and `python3 viz.py` from the repo root. No `.mjs`
-files ship here.
+`python3 okf.py` and `python3 viz.py` from the repo root.
 
 There is exactly one copy of everything: `okf.py`/`viz.py` are the
 tools, `skills/` is the shared, agent-neutral skill source — both
