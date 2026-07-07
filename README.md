@@ -113,31 +113,22 @@ are plain markdown instructions, tools run by path from the clone
 
 ## Onboarding a project
 
-Install once (above), then per project:
+Install once (above), then per project it's one conversation:
 
-1. **Start the bundle.** In the project, ask your agent to *"start a
-   knowledge bundle in `knowledge/`"* (okf-create-node initializes
-   the layout), or *"ingest NOTES.md / docs/ into a knowledge
-   bundle"* (okf-transform) if knowledge already exists as prose.
-2. **Tell future sessions it exists.** Skills trigger on how you
-   talk, but a standing pointer makes every session bundle-aware.
-   Add a short block to the project's `CLAUDE.md` (and `AGENTS.md`
-   for Codex):
+- *"Start a knowledge bundle in `knowledge/`"* — okf-create-node
+  initializes the layout **and wires the project**: it writes a
+  knowledge-base block into the project's `CLAUDE.md`/`AGENTS.md` so
+  every future session finds the bundle without being told. (If the
+  knowledge already exists as prose — NOTES.md, docs/ — say *"ingest
+  it into a bundle"* and okf-transform does the conversion.)
+- *"Gate the bundle"* — okf-validate installs the mechanical health
+  check where you want it: a git pre-commit hook or a CI step running
+  `okf.py validate` (deterministic, zero-dependency, exit 1 on
+  violations). Health becomes enforced, not remembered.
 
-   ```markdown
-   ## Knowledge base
-
-   `knowledge/` is this repo's knowledge base — an OKF bundle
-   (markdown + YAML frontmatter; start at `knowledge/index.md`).
-   Consult it when working here. Capture durable decisions and
-   findings as concepts (okf-create-node); ingest existing docs
-   with okf-transform; after any bundle change, validate and
-   reindex (okf-validate).
-   ```
-
-3. **Keep it healthy.** End bundle-touching sessions with
-   *"validate the bundle"* — or gate it mechanically in CI:
-   `python3 <suite>/okf.py validate knowledge/`.
+After that, sessions in the project just use it: durable decisions
+get captured as concepts, imports go through okf-transform, and
+validation runs after changes — per the wired-in protocol block.
 
 ## Tests
 

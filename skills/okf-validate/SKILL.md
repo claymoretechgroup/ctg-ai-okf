@@ -1,6 +1,6 @@
 ---
 name: okf-validate
-description: Validate, index, and maintain OKF bundle statics: OKF v0.1 conformance, index.md regeneration, broken-link reports, tag inventory/registry checks, type inventory/registry checks, and static HTML visualization. Use whenever the user asks whether an OKF bundle is conformant, navigable, indexed, or statically healthy, or after any other skill has mutated a bundle.
+description: Validate, index, and maintain OKF bundle statics: OKF v0.1 conformance, index.md regeneration, broken-link reports, tag inventory/registry checks, type inventory/registry checks, and static HTML visualization. Use whenever the user asks whether an OKF bundle is conformant, navigable, indexed, or statically healthy, after any other skill has mutated a bundle, or to enforce bundle health mechanically (pre-commit hook, CI gate).
 ---
 
 # OKF Validate
@@ -70,6 +70,25 @@ python3 <suite>/okf.py index <bundle>
 python3 <suite>/okf.py types <bundle>
 python3 <suite>/okf.py tags <bundle>
 ```
+
+## Mechanical Gate (on request)
+
+When the user wants bundle health enforced rather than remembered
+("gate the bundle", "check it in CI", "add a pre-commit hook"), wire
+`validate` in — it is deterministic, zero-dependency, and exits 1 on
+violations, so it works anywhere a shell does.
+
+Git pre-commit (`.git/hooks/pre-commit`, `chmod +x`):
+
+```bash
+#!/bin/sh
+python3 <suite>/okf.py validate <bundle> || exit 1
+```
+
+CI: add `python3 <suite>/okf.py validate <bundle>` as a step (a
+checkout of this suite's repo is enough — there are no dependencies
+to install). Use the repo-clone form for `<suite>` in hooks and CI —
+`${CLAUDE_PLUGIN_ROOT}` only exists inside agent sessions.
 
 Recall quality, governance, identity, currentness, coverage, and
 memory behavior are out of this suite's scope.

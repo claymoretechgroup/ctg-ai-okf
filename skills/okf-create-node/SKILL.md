@@ -1,6 +1,6 @@
 ---
 name: okf-create-node
-description: Create Open Knowledge Format (OKF) bundles and author new concept documents (markdown + YAML frontmatter). Use whenever the user wants to start a knowledge bundle, add a concept, playbook, metric, reference, or table doc to an OKF bundle, or capture new knowledge "in OKF" — even if they just say "add this to the bundle" or "document this as a concept". For converting existing artifacts into OKF use okf-transform.
+description: Create Open Knowledge Format (OKF) bundles and author new concept documents (markdown + YAML frontmatter). Use whenever the user wants to start a knowledge bundle, add a concept, playbook, metric, reference, or table doc to an OKF bundle, or capture new knowledge "in OKF" — even if they just say "add this to the bundle" or "document this as a concept". Also onboards projects: initializing a bundle includes wiring the project's CLAUDE.md/AGENTS.md so future sessions are bundle-aware. For converting existing artifacts into OKF use okf-transform.
 ---
 
 # OKF Create
@@ -38,6 +38,24 @@ root `index.md`) before creating one. To initialize a new bundle:
 
 Organize subdirectories by whatever suits the domain (`tables/`,
 `playbooks/`, `references/`, `decisions/` …) — the spec imposes nothing.
+
+**When initializing a NEW bundle, finish by wiring the project** so
+every future session is bundle-aware without being told. Offer to add
+this block to the project's `CLAUDE.md` (and `AGENTS.md`, if the
+project keeps one for other agents), adjusting the path:
+
+```markdown
+## Knowledge base
+
+`<bundle>/` is this repo's knowledge base — an OKF bundle (markdown +
+YAML frontmatter; start at `<bundle>/index.md`). Consult it when
+working here. Capture durable decisions and findings as concepts
+(okf-create-node); ingest existing docs with okf-transform; after any
+bundle change, validate and reindex (okf-validate).
+```
+
+If the user wants the health check enforced rather than remembered,
+hand off to okf-validate's mechanical gate (pre-commit / CI).
 
 ### 2. Write the concept
 
