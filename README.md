@@ -12,13 +12,16 @@ GoE depends on OKF tooling; OKF does not depend on GoE.
 - `okf.py` — zero-dependency Python 3 statics commands:
   `validate`, `links`, `index`, `types`, and `tags`.
 - `viz.py` — zero-dependency Python 3 HTML graph visualizer.
-- `skills/` — agent-neutral statics skills:
-  `okf-create-node`, `okf-transform`, `okf-validate`.
+- `skills/` — agent-neutral statics skills, the ONE copy read by both
+  models: `okf-create-node`, `okf-transform`, `okf-validate`. In a
+  SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
+  for Claude plugin installs, the repo clone path for Codex).
 - `spec/` — vendored Open Knowledge Format v0.1 specification.
 - `test/` — copied fixture bundles plus byte-parity receipts from the
   former JavaScript tools.
-- `adapters/claude/` and `adapters/codex/` — integration notes for each
-  agent surface.
+- `.claude-plugin/` — Claude wiring (`/plugin marketplace add` this
+  repo, `/plugin install okf`; skills load from `./skills`).
+- `AGENTS.md` — the Codex contract (install = clone the repo).
 
 No `.mjs` files ship in this repo. The old JavaScript tools are retained
 only as local verification twins in the superseded ancestor repo.

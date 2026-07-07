@@ -10,18 +10,18 @@ what a valid bundle is. GoE owns **dynamics**: construction, recall,
 trust, identity lifecycle, supersession/current, frontier queues, and
 memory protocols.
 
-The deterministic statics tools live at the repo root:
+The deterministic statics tools live at the suite root — `<suite>` is the install root (`${CLAUDE_PLUGIN_ROOT}` for Claude plugin installs, the repo clone path for Codex):
 
 ```bash
-python3 okf.py validate <bundle>          # conformance (§9); exit 1 on violations
-python3 okf.py links    <bundle>          # broken internal links; always exit 0
-python3 okf.py index    <bundle>          # dry-run: which index.md files are stale
-python3 okf.py index    <bundle> --write  # regenerate them
-python3 okf.py tags     <bundle>          # tag inventory + registry check; exit 1 on unregistered tags
-python3 okf.py tags     <bundle> --registry <file>
-python3 okf.py types    <bundle>          # type inventory + registry check; exit 1 on unregistered types
-python3 okf.py types    <bundle> --taxonomy <file>
-python3 viz.py <bundle> [--out <path>] [--name <title>]
+python3 <suite>/okf.py validate <bundle>          # conformance (§9); exit 1 on violations
+python3 <suite>/okf.py links    <bundle>          # broken internal links; always exit 0
+python3 <suite>/okf.py index    <bundle>          # dry-run: which index.md files are stale
+python3 <suite>/okf.py index    <bundle> --write  # regenerate them
+python3 <suite>/okf.py tags     <bundle>          # tag inventory + registry check; exit 1 on unregistered tags
+python3 <suite>/okf.py tags     <bundle> --registry <file>
+python3 <suite>/okf.py types    <bundle>          # type inventory + registry check; exit 1 on unregistered types
+python3 <suite>/okf.py types    <bundle> --taxonomy <file>
+python3 <suite>/viz.py <bundle> [--out <path>] [--name <title>]
 ```
 
 The full spec is vendored at `spec/SPEC.md`. The statics/dynamics
@@ -83,11 +83,11 @@ the visualization artifact.
 When asked for a statics audit, run and report in this order:
 
 ```bash
-python3 okf.py validate <bundle>
-python3 okf.py links <bundle>
-python3 okf.py index <bundle>
-python3 okf.py types <bundle>
-python3 okf.py tags <bundle>
+python3 <suite>/okf.py validate <bundle>
+python3 <suite>/okf.py links <bundle>
+python3 <suite>/okf.py index <bundle>
+python3 <suite>/okf.py types <bundle>
+python3 <suite>/okf.py tags <bundle>
 ```
 
 If the user also asks about recall quality, governance, identity,

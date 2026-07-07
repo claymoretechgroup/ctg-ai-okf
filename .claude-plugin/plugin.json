@@ -14,5 +14,6 @@
     "knowledge",
     "markdown",
     "frontmatter"
-  ]
+  ],
+  "skills": "./skills"
 }

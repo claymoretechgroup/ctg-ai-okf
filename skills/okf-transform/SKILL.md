@@ -63,10 +63,12 @@ the real work is link integrity:
 ## Always finish the same way
 
 ```bash
-python3 okf.py index <bundle> --write
-python3 okf.py links <bundle>
-python3 okf.py validate <bundle>
+python3 <suite>/okf.py index <bundle> --write
+python3 <suite>/okf.py links <bundle>
+python3 <suite>/okf.py validate <bundle>
 ```
+
+(`<suite>` is the install root: `${CLAUDE_PLUGIN_ROOT}` for Claude plugin installs, the repo clone path for Codex.)
 
 Broken links that existed before your change are tolerable (spec §5.3);
 broken links your change *introduced* are not — fix those. Then log the

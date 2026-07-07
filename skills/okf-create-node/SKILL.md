@@ -80,7 +80,7 @@ Notes that matter:
   never silently. If there's no registry, reuse tags already present in
   the bundle (grep `tags:`) rather than inventing near-synonyms —
   uncontrolled tag vocabularies decay into one-tag-per-concept and stop
-  working as routing keys. `python3 okf.py tags <bundle>` (okf-validate) checks
+  working as routing keys. `python3 <suite>/okf.py tags <bundle>` (okf-validate; `<suite>` is the install root — `${CLAUDE_PLUGIN_ROOT}` for Claude plugin installs, the repo clone for Codex) checks
   compliance. Where registry entries carry criteria ("earns this label
   when…", per ctg-ai-goe's okf-lexicon), labeling is rubric application: for
   non-obvious assignments note which criterion the concept meets.
@@ -121,7 +121,7 @@ Notes that matter:
 After writing concepts, regenerate indexes with the OKF statics tool:
 
 ```bash
-python3 okf.py index <bundle> --write
+python3 <suite>/okf.py index <bundle> --write
 ```
 
 Then add a log entry by hand — the log is curated prose, not generated.
@@ -136,7 +136,7 @@ first, `## YYYY-MM-DD` headings:
 ### 4. Validate
 
 ```bash
-python3 okf.py validate <bundle>
+python3 <suite>/okf.py validate <bundle>
 ```
 
 Fix any violation before finishing — conformance is the cheap oracle

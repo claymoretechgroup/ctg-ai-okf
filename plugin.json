@@ -1,6 +1,0 @@
-{
-  "name": "okf",
-  "description": "Open Knowledge Format statics for coding agents: create, transform, validate, index, tag/type inventory, and bundle visualization",
-  "version": "0.1.0",
-  "skills": "./skills"
-}
