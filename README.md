@@ -1,4 +1,4 @@
-# CTG AI OKF
+# ctg-ai-okf
 
 Open Knowledge Format tooling for LLM coding agents (Claude and
 Codex): everything an agent needs to create, transform, validate,
@@ -98,7 +98,7 @@ The suite drives the Python tools natively and byte-compares their
 outputs against the individually ledgered receipts in
 `test/receipts/old/`.
 
-## The skills
+## Skills
 
 Three skills cover the write / restructure / verify lifecycle. After
 install they trigger on natural requests — you talk about knowledge,
@@ -115,7 +115,7 @@ plugin; Codex reads the same files per [AGENTS.md](AGENTS.md). In a
 SKILL.md, `<suite>` means the install root (`${CLAUDE_PLUGIN_ROOT}`
 for Claude plugin installs, the repo clone path for Codex).
 
-## The tools
+## Tools
 
 Two zero-dependency Python 3 programs the skills run underneath —
 equally usable by hand or in CI:
