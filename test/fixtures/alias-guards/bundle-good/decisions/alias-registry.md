@@ -2,7 +2,7 @@
 type: Decision
 title: Alias Registry (good fixture)
 description: Well-formed entries — one declared tag alias, one proposed key alias.
-status: proposed
+status: draft
 ---
 
 ```yaml

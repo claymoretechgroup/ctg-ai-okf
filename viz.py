@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""viz.py - zero-dependency OKF bundle visualizer."""
+"""viz.py - zero-dependency OKF v0.2 bundle visualizer."""
 
 import json
 import os
 import re
 import sys
 
-from okf import LINK_RE, read_doc, walk
+from okf import LINK_RE, URL_RE, normalize_verified, read_doc, resolve_path, sources_of, status_of, trust_tier, walk
 
 
 PALETTE = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
@@ -15,6 +15,13 @@ PALETTE = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
 
 def rel(root, path):
     return os.path.relpath(path, root).replace(os.sep, "/")
+
+
+def concept_id(root, abs_path, by_id):
+    if not os.path.exists(abs_path) or not abs_path.endswith(".md"):
+        return None
+    target_id = re.sub(r"\.md$", "", rel(root, abs_path))
+    return target_id if target_id in by_id else None
 
 
 def build_graph(bundle):
@@ -31,13 +38,25 @@ def build_graph(bundle):
             with open(path, "r", encoding="utf-8") as fh:
                 doc = {"frontmatter": None, "body": fh.read()}
         fm = doc["frontmatter"] if isinstance(doc.get("frontmatter"), dict) else {}
+        generated = fm.get("generated") if isinstance(fm.get("generated"), dict) else None
         node = {
             "id": node_id,
+            "path": path,
             "type": fm["type"] if isinstance(fm.get("type"), str) and fm.get("type") else ("Log" if os.path.basename(path) == "log.md" else "Untyped"),
             "title": fm.get("title") or os.path.splitext(os.path.basename(path))[0],
             "description": fm.get("description") or "",
             "tags": fm.get("tags") if isinstance(fm.get("tags"), list) else [],
             "resource": fm.get("resource") if isinstance(fm.get("resource"), str) else "",
+            "status": status_of(fm),
+            "trust": trust_tier(fm),
+            "generated": {"by": str(generated.get("by") or ""), "at": str(generated.get("at") or "")} if generated else None,
+            "verified": [{"by": str(e.get("by") or ""), "at": str(e.get("at") or "")} for e in normalize_verified(fm)],
+            "stale_after": fm.get("stale_after") if isinstance(fm.get("stale_after"), str) else "",
+            "runtime": fm.get("runtime") if isinstance(fm.get("runtime"), str) else "",
+            "sources": [
+                {"id": str(s.get("id") or ""), "resource": str(s.get("resource") or ""), "title": str(s.get("title") or "")}
+                for s in sources_of(fm)
+            ],
             "timestamp": fm.get("timestamp") or "",
             "body": doc["body"],
         }
@@ -46,23 +65,33 @@ def build_graph(bundle):
 
     edges = []
     seen = set()
+
+    def add_edge(source, target, kind):
+        key = f"{source} -> {target} [{kind}]"
+        if target is None or target == source or key in seen:
+            return
+        seen.add(key)
+        edges.append({"source": source, "target": target, "kind": kind})
+
     for node in nodes:
-        dir_path = os.path.join(root, os.path.dirname(node["id"]))
+        path = node.pop("path")
+        dir_path = os.path.dirname(path)
         for match in LINK_RE.finditer(node["body"]):
             target = match.group(1).split("#", 1)[0]
-            if target == "" or re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I):
+            if target == "" or URL_RE.match(target):
                 continue
             abs_path = os.path.join(root, target.lstrip("/")) if target.startswith("/") else os.path.realpath(os.path.join(dir_path, target))
-            if not os.path.exists(abs_path) or not abs_path.endswith(".md"):
+            add_edge(node["id"], concept_id(root, abs_path, by_id), "link")
+        for src in node["sources"]:
+            target = src["resource"]
+            if target == "" or URL_RE.match(target) or " " in target:
                 continue
-            target_id = re.sub(r"\.md$", "", rel(root, abs_path))
-            if target_id not in by_id or target_id == node["id"]:
-                continue
-            key = f"{node['id']} -> {target_id}"
-            if key in seen:
-                continue
-            seen.add(key)
-            edges.append({"source": node["id"], "target": target_id})
+            for candidate in resolve_path(root, path, target):
+                tid = concept_id(root, candidate, by_id)
+                if tid:
+                    src["concept"] = tid
+                    add_edge(node["id"], tid, "source")
+                    break
     return {"nodes": nodes, "edges": edges}
 
 
@@ -78,8 +107,274 @@ def render(name, graph):
     return TEMPLATE.replace("__TITLE__", escape_html(name)).replace("__DATA__", encoded)
 
 
-TEMPLATE = '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>__TITLE__ — OKF bundle</title>\n<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>\n<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>\n<style>\n  * { box-sizing: border-box; }\n  body { margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; display: flex; height: 100vh; }\n  #side { width: 230px; min-width: 230px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fafafa; }\n  #side h1 { font-size: 15px; margin: 0 0 4px; }\n  #side .meta { color: #777; font-size: 12px; margin-bottom: 10px; }\n  #search { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }\n  .typerow { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 13px; cursor: pointer; }\n  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }\n  #fit { margin-top: 10px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }\n  #cy { flex: 1; min-width: 0; }\n  #detail { width: 420px; min-width: 320px; border-left: 1px solid #ddd; padding: 16px; overflow-y: auto; }\n  #detail .placeholder { color: #999; margin-top: 40%; text-align: center; }\n  #detail h2 { margin: 0 0 2px; font-size: 18px; }\n  .chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; color: #fff; margin-right: 6px; }\n  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: #eee; color: #555; margin: 0 4px 4px 0; }\n  .cid { color: #999; font-size: 12px; font-family: monospace; margin-bottom: 6px; }\n  .desc { color: #444; font-style: italic; margin: 6px 0 10px; }\n  .res a { font-size: 12px; word-break: break-all; }\n  #body { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }\n  #body table { border-collapse: collapse; font-size: 12px; }\n  #body th, #body td { border: 1px solid #ddd; padding: 3px 7px; text-align: left; }\n  #body pre { background: #f5f5f5; padding: 8px; border-radius: 5px; overflow-x: auto; font-size: 12px; }\n  #body code { background: #f5f5f5; font-size: 12px; }\n  #body a { color: #2a6fb0; }\n  #backlinks { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }\n  #backlinks h3 { font-size: 13px; margin: 0 0 6px; color: #666; }\n  #backlinks a { display: block; font-size: 13px; margin: 2px 0; color: #2a6fb0; cursor: pointer; }\n</style>\n</head>\n<body>\n<div id="side">\n  <h1 id="bname"></h1>\n  <div class="meta" id="bmeta"></div>\n  <input id="search" placeholder="search title / id / tags…">\n  <div id="types"></div>\n  <button id="fit">Fit graph</button>\n</div>\n<div id="cy"></div>\n<div id="detail"><div class="placeholder">Select a concept</div></div>\n<script>\nvar DATA = __DATA__;\ndocument.getElementById(\'bname\').textContent = DATA.name;\ndocument.getElementById(\'bmeta\').textContent = DATA.nodes.length + \' concepts · \' + DATA.edges.length + \' links\';\n\nvar nodeById = {};\nDATA.nodes.forEach(function (n) { nodeById[n.id] = n; });\nvar inbound = {};\nDATA.edges.forEach(function (e) { (inbound[e.target] = inbound[e.target] || []).push(e.source); });\n\nvar cy = cytoscape({\n  container: document.getElementById(\'cy\'),\n  elements: DATA.nodes.map(function (n) {\n    return { data: { id: n.id, label: n.title, type: n.type } };\n  }).concat(DATA.edges.map(function (e) {\n    return { data: { id: e.source + \'->\' + e.target, source: e.source, target: e.target } };\n  })),\n  style: [\n    { selector: \'node\', style: {\n        \'label\': \'data(label)\', \'font-size\': 8, \'width\': 16, \'height\': 16,\n        \'text-wrap\': \'wrap\', \'text-max-width\': 90, \'text-valign\': \'bottom\', \'text-margin-y\': 3,\n        \'color\': \'#333\', \'background-color\': \'#999\' } },\n    { selector: \'edge\', style: {\n        \'width\': 1, \'line-color\': \'#ccc\', \'target-arrow-color\': \'#ccc\',\n        \'target-arrow-shape\': \'triangle\', \'arrow-scale\': 0.7, \'curve-style\': \'bezier\' } },\n    { selector: \'node:selected\', style: { \'border-width\': 3, \'border-color\': \'#1a1a2e\' } },\n    { selector: \'.dim\', style: { \'opacity\': 0.12 } },\n    { selector: \'.hide\', style: { \'display\': \'none\' } }\n  ].concat(DATA.types.map(function (t) {\n    return { selector: \'node[type="\' + t.replace(/"/g, \'\\\\\\\\"\') + \'"]\',\n             style: { \'background-color\': DATA.colors[t] } };\n  })),\n  layout: { name: \'cose\', animate: false, nodeRepulsion: 9000, idealEdgeLength: 60 }\n});\n\n// type filter\nvar typesEl = document.getElementById(\'types\');\nDATA.types.forEach(function (t) {\n  var row = document.createElement(\'label\');\n  row.className = \'typerow\';\n  var cb = document.createElement(\'input\');\n  cb.type = \'checkbox\'; cb.checked = true;\n  cb.addEventListener(\'change\', applyFilters);\n  var sw = document.createElement(\'span\');\n  sw.className = \'swatch\'; sw.style.background = DATA.colors[t];\n  var count = DATA.nodes.filter(function (n) { return n.type === t; }).length;\n  row.appendChild(cb); row.appendChild(sw);\n  row.appendChild(document.createTextNode(t + \' (\' + count + \')\'));\n  row.dataset.type = t;\n  typesEl.appendChild(row);\n});\n\nfunction applyFilters() {\n  var enabled = {};\n  Array.prototype.forEach.call(typesEl.children, function (row) {\n    enabled[row.dataset.type] = row.querySelector(\'input\').checked;\n  });\n  var q = document.getElementById(\'search\').value.trim().toLowerCase();\n  cy.nodes().forEach(function (el) {\n    var n = nodeById[el.id()];\n    el.toggleClass(\'hide\', !enabled[n.type]);\n    var match = !q || n.id.toLowerCase().indexOf(q) >= 0 ||\n      n.title.toLowerCase().indexOf(q) >= 0 ||\n      n.description.toLowerCase().indexOf(q) >= 0 ||\n      n.tags.join(\' \').toLowerCase().indexOf(q) >= 0;\n    el.toggleClass(\'dim\', !match);\n  });\n}\ndocument.getElementById(\'search\').addEventListener(\'input\', applyFilters);\ndocument.getElementById(\'fit\').addEventListener(\'click\', function () { cy.fit(undefined, 30); });\n\nfunction esc(s) {\n  return String(s).replace(/&/g, \'&amp;\').replace(/</g, \'&lt;\').replace(/>/g, \'&gt;\');\n}\n\nfunction targetIdOf(href, fromId) {\n  if (!href || /^[a-z][a-z0-9+.-]*:/i.test(href) || href.charAt(0) === \'#\') return null;\n  var path = href.split(\'#\')[0].replace(/\\\\.md$/, \'\');\n  if (path.charAt(0) === \'/\') path = path.slice(1);\n  else {\n    var base = fromId.indexOf(\'/\') >= 0 ? fromId.slice(0, fromId.lastIndexOf(\'/\')).split(\'/\') : [];\n    var parts = path.split(\'/\');\n    for (var i = 0; i < parts.length; i++) {\n      if (parts[i] === \'..\') base.pop();\n      else if (parts[i] !== \'.\') base.push(parts[i]);\n    }\n    path = base.join(\'/\');\n  }\n  return nodeById[path] ? path : null;\n}\n\nfunction show(id) {\n  var n = nodeById[id];\n  var d = document.getElementById(\'detail\');\n  var html = \'<h2>\' + esc(n.title) + \'</h2><div class="cid">\' + esc(n.id) + \'</div>\' +\n    \'<span class="chip" style="background:\' + DATA.colors[n.type] + \'">\' + esc(n.type) + \'</span>\' +\n    (n.timestamp ? \'<span style="font-size:11px;color:#999">\' + esc(n.timestamp) + \'</span>\' : \'\') +\n    (n.description ? \'<div class="desc">\' + esc(n.description) + \'</div>\' : \'\') +\n    (n.tags.length ? \'<div>\' + n.tags.map(function (t) { return \'<span class="tag">\' + esc(t) + \'</span>\'; }).join(\'\') + \'</div>\' : \'\') +\n    (n.resource ? \'<div class="res">resource: <a href="\' + esc(n.resource) + \'" target="_blank" rel="noopener">\' + esc(n.resource) + \'</a></div>\' : \'\') +\n    \'<div id="body"></div><div id="backlinks"></div>\';\n  d.innerHTML = html;\n  var bodyEl = d.querySelector(\'#body\');\n  if (window.marked) bodyEl.innerHTML = marked.parse(n.body);\n  else bodyEl.innerHTML = \'<pre>\' + esc(n.body) + \'</pre>\';\n  // rewire internal links to in-viewer navigation\n  Array.prototype.forEach.call(bodyEl.querySelectorAll(\'a\'), function (a) {\n    var tid = targetIdOf(a.getAttribute(\'href\'), n.id);\n    if (tid) {\n      a.addEventListener(\'click\', function (ev) { ev.preventDefault(); select(tid); });\n      a.removeAttribute(\'target\');\n    } else if (/^[a-z][a-z0-9+.-]*:/i.test(a.getAttribute(\'href\') || \'\')) {\n      a.setAttribute(\'target\', \'_blank\');\n      a.setAttribute(\'rel\', \'noopener\');\n    } else {\n      a.replaceWith.apply(a, a.childNodes); // unresolvable local link → plain text\n    }\n  });\n  var back = inbound[id] || [];\n  var bl = d.querySelector(\'#backlinks\');\n  bl.innerHTML = \'<h3>Linked from (\' + back.length + \')</h3>\';\n  back.sort().forEach(function (src) {\n    var a = document.createElement(\'a\');\n    a.textContent = nodeById[src].title + \' — \' + src;\n    a.addEventListener(\'click\', function () { select(src); });\n    bl.appendChild(a);\n  });\n}\n\nfunction select(id) {\n  cy.elements().unselect();\n  var el = cy.getElementById(id);\n  el.select();\n  cy.animate({ center: { eles: el }, duration: 200 });\n  show(id);\n}\n\ncy.on(\'tap\', \'node\', function (ev) { show(ev.target.id()); });\n</script>\n</body>\n</html>\n'
-TEMPLATE = TEMPLATE.replace("\\\\\\\\\"", "\\\\\"").replace("/\\\\.md$", "/\\.md$")
+TEMPLATE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__TITLE__ — OKF bundle</title>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; display: flex; height: 100vh; }
+  #side { width: 230px; min-width: 230px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fafafa; }
+  #side h1 { font-size: 15px; margin: 0 0 4px; }
+  #side .meta { color: #777; font-size: 12px; margin-bottom: 10px; }
+  #side h3 { font-size: 12px; color: #666; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+  #search { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }
+  .typerow { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 13px; cursor: pointer; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  #fit { margin-top: 10px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+  #cy { flex: 1; min-width: 0; }
+  #detail { width: 420px; min-width: 320px; border-left: 1px solid #ddd; padding: 16px; overflow-y: auto; }
+  #detail .placeholder { color: #999; margin-top: 40%; text-align: center; }
+  #detail h2 { margin: 0 0 2px; font-size: 18px; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; color: #fff; margin-right: 6px; }
+  .chip.soft { background: #e5e5e5; color: #444; }
+  .chip.human { background: #59a14f; }
+  .chip.machine { background: #76b7b2; }
+  .chip.stale, .chip.deprecated { background: #e15759; }
+  .chip.draft { background: #edc949; color: #333; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: #eee; color: #555; margin: 0 4px 4px 0; }
+  .cid { color: #999; font-size: 12px; font-family: monospace; margin-bottom: 6px; }
+  .desc { color: #444; font-style: italic; margin: 6px 0 10px; }
+  .res a { font-size: 12px; word-break: break-all; }
+  .trust { font-size: 12px; color: #666; margin: 8px 0; }
+  .trust div { margin: 1px 0; }
+  .trust .actor { font-family: monospace; color: #444; }
+  .trust .stale-note { color: #c0392b; }
+  #sources { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #sources h3, #backlinks h3 { font-size: 13px; margin: 0 0 6px; color: #666; }
+  #sources div { font-size: 13px; margin: 2px 0; }
+  #sources .sid { font-family: monospace; color: #999; font-size: 11px; margin-right: 6px; }
+  #sources a { color: #2a6fb0; cursor: pointer; word-break: break-all; }
+  #body { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #body table { border-collapse: collapse; font-size: 12px; }
+  #body th, #body td { border: 1px solid #ddd; padding: 3px 7px; text-align: left; }
+  #body pre { background: #f5f5f5; padding: 8px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+  #body code { background: #f5f5f5; font-size: 12px; }
+  #body a { color: #2a6fb0; }
+  #backlinks { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #backlinks a { display: block; font-size: 13px; margin: 2px 0; color: #2a6fb0; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1 id="bname"></h1>
+  <div class="meta" id="bmeta"></div>
+  <input id="search" placeholder="search title / id / tags / trust…">
+  <h3>Types</h3>
+  <div id="types"></div>
+  <h3>Lifecycle</h3>
+  <label class="typerow"><input type="checkbox" id="hide-deprecated"> hide deprecated</label>
+  <label class="typerow"><input type="checkbox" id="hide-stale"> hide stale</label>
+  <button id="fit">Fit graph</button>
+</div>
+<div id="cy"></div>
+<div id="detail"><div class="placeholder">Select a concept</div></div>
+<script>
+var DATA = __DATA__;
+var NOW = Date.now();
+document.getElementById('bname').textContent = DATA.name;
+document.getElementById('bmeta').textContent = DATA.nodes.length + ' concepts · ' + DATA.edges.length + ' links';
+
+var nodeById = {};
+DATA.nodes.forEach(function (n) {
+  nodeById[n.id] = n;
+  var t = n.stale_after ? Date.parse(n.stale_after) : NaN;
+  n.stale = !isNaN(t) && NOW >= t;   // SPEC §5.5: stale when now >= stale_after
+});
+var inbound = {};
+DATA.edges.forEach(function (e) { (inbound[e.target] = inbound[e.target] || []).push(e.source); });
+
+var cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: DATA.nodes.map(function (n) {
+    return { data: { id: n.id, label: n.title, type: n.type, status: n.status, stale: n.stale ? 1 : 0 } };
+  }).concat(DATA.edges.map(function (e) {
+    return { data: { id: e.source + '->' + e.target + '#' + e.kind, source: e.source, target: e.target, kind: e.kind } };
+  })),
+  style: [
+    { selector: 'node', style: {
+        'label': 'data(label)', 'font-size': 8, 'width': 16, 'height': 16,
+        'text-wrap': 'wrap', 'text-max-width': 90, 'text-valign': 'bottom', 'text-margin-y': 3,
+        'color': '#333', 'background-color': '#999' } },
+    { selector: 'edge', style: {
+        'width': 1, 'line-color': '#ccc', 'target-arrow-color': '#ccc',
+        'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier' } },
+    { selector: 'edge[kind="source"]', style: { 'line-style': 'dashed', 'line-color': '#b8a', 'target-arrow-color': '#b8a' } },
+    { selector: 'node[status="deprecated"]', style: { 'opacity': 0.45, 'border-width': 2, 'border-style': 'dashed', 'border-color': '#888' } },
+    { selector: 'node[status="draft"]', style: { 'border-width': 2, 'border-style': 'dotted', 'border-color': '#b8860b' } },
+    { selector: 'node[stale=1]', style: { 'border-width': 2, 'border-color': '#e15759' } },
+    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#1a1a2e' } },
+    { selector: '.dim', style: { 'opacity': 0.12 } },
+    { selector: '.hide', style: { 'display': 'none' } }
+  ].concat(DATA.types.map(function (t) {
+    return { selector: 'node[type="' + t.replace(/"/g, '\\"') + '"]',
+             style: { 'background-color': DATA.colors[t] } };
+  })),
+  layout: { name: 'cose', animate: false, nodeRepulsion: 9000, idealEdgeLength: 60 }
+});
+
+// type filter
+var typesEl = document.getElementById('types');
+DATA.types.forEach(function (t) {
+  var row = document.createElement('label');
+  row.className = 'typerow';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = true;
+  cb.addEventListener('change', applyFilters);
+  var sw = document.createElement('span');
+  sw.className = 'swatch'; sw.style.background = DATA.colors[t];
+  var count = DATA.nodes.filter(function (n) { return n.type === t; }).length;
+  row.appendChild(cb); row.appendChild(sw);
+  row.appendChild(document.createTextNode(t + ' (' + count + ')'));
+  row.dataset.type = t;
+  typesEl.appendChild(row);
+});
+
+function applyFilters() {
+  var enabled = {};
+  Array.prototype.forEach.call(typesEl.children, function (row) {
+    enabled[row.dataset.type] = row.querySelector('input').checked;
+  });
+  var hideDeprecated = document.getElementById('hide-deprecated').checked;
+  var hideStale = document.getElementById('hide-stale').checked;
+  var q = document.getElementById('search').value.trim().toLowerCase();
+  cy.nodes().forEach(function (el) {
+    var n = nodeById[el.id()];
+    var hidden = !enabled[n.type] || (hideDeprecated && n.status === 'deprecated') || (hideStale && n.stale);
+    el.toggleClass('hide', hidden);
+    var match = !q || n.id.toLowerCase().indexOf(q) >= 0 ||
+      n.title.toLowerCase().indexOf(q) >= 0 ||
+      n.description.toLowerCase().indexOf(q) >= 0 ||
+      n.tags.join(' ').toLowerCase().indexOf(q) >= 0 ||
+      n.trust.indexOf(q) >= 0 || n.status.indexOf(q) >= 0 ||
+      (n.stale && 'stale'.indexOf(q) >= 0);
+    el.toggleClass('dim', !match);
+  });
+}
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('hide-deprecated').addEventListener('change', applyFilters);
+document.getElementById('hide-stale').addEventListener('change', applyFilters);
+document.getElementById('fit').addEventListener('click', function () { cy.fit(undefined, 30); });
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function targetIdOf(href, fromId) {
+  if (!href || /^[a-z][a-z0-9+.-]*:/i.test(href) || href.charAt(0) === '#') return null;
+  var path = href.split('#')[0].replace(/\.md$/, '');
+  if (path.charAt(0) === '/') path = path.slice(1);
+  else {
+    var base = fromId.indexOf('/') >= 0 ? fromId.slice(0, fromId.lastIndexOf('/')).split('/') : [];
+    var parts = path.split('/');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === '..') base.pop();
+      else if (parts[i] !== '.') base.push(parts[i]);
+    }
+    path = base.join('/');
+  }
+  return nodeById[path] ? path : null;
+}
+
+function actorLine(label, e) {
+  return '<div>' + label + ' <span class="actor">' + esc(e.by || '?') + '</span>' + (e.at ? ' at ' + esc(e.at) : '') + '</div>';
+}
+
+function trustBlock(n) {
+  var out = '';
+  if (n.generated) out += actorLine('generated by', n.generated);
+  else if (n.timestamp) out += '<div>timestamp ' + esc(n.timestamp) + ' <span style="color:#999">(legacy v0.1)</span></div>';
+  n.verified.forEach(function (e) { out += actorLine('verified by', e); });
+  if (n.stale_after) out += '<div' + (n.stale ? ' class="stale-note"' : '') + '>' + (n.stale ? 'stale since ' : 'stale after ') + esc(n.stale_after) + '</div>';
+  if (n.runtime) out += '<div>runtime <span class="actor">' + esc(n.runtime) + '</span></div>';
+  return out ? '<div class="trust">' + out + '</div>' : '';
+}
+
+function chips(n) {
+  var out = '<span class="chip" style="background:' + DATA.colors[n.type] + '">' + esc(n.type) + '</span>';
+  if (n.status !== 'stable') out += '<span class="chip ' + esc(n.status) + '">' + esc(n.status) + '</span>';
+  out += '<span class="chip ' + (n.trust === 'human-reviewed' ? 'human' : n.trust === 'machine-confirmed' ? 'machine' : 'soft') + '">' + esc(n.trust) + '</span>';
+  if (n.stale) out += '<span class="chip stale">stale</span>';
+  return out;
+}
+
+function show(id) {
+  var n = nodeById[id];
+  var d = document.getElementById('detail');
+  var html = '<h2>' + esc(n.title) + '</h2><div class="cid">' + esc(n.id) + '</div>' +
+    chips(n) +
+    (n.description ? '<div class="desc">' + esc(n.description) + '</div>' : '') +
+    (n.tags.length ? '<div>' + n.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+    (n.resource ? '<div class="res">resource: <a href="' + esc(n.resource) + '" target="_blank" rel="noopener">' + esc(n.resource) + '</a></div>' : '') +
+    trustBlock(n) +
+    '<div id="body"></div>' +
+    (n.sources.length ? '<div id="sources"><h3>Sources (' + n.sources.length + ')</h3></div>' : '') +
+    '<div id="backlinks"></div>';
+  d.innerHTML = html;
+  var bodyEl = d.querySelector('#body');
+  if (window.marked) bodyEl.innerHTML = marked.parse(n.body);
+  else bodyEl.innerHTML = '<pre>' + esc(n.body) + '</pre>';
+  // rewire internal links to in-viewer navigation
+  Array.prototype.forEach.call(bodyEl.querySelectorAll('a'), function (a) {
+    var tid = targetIdOf(a.getAttribute('href'), n.id);
+    if (tid) {
+      a.addEventListener('click', function (ev) { ev.preventDefault(); select(tid); });
+      a.removeAttribute('target');
+    } else if (/^[a-z][a-z0-9+.-]*:/i.test(a.getAttribute('href') || '')) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+    } else {
+      a.replaceWith.apply(a, a.childNodes); // unresolvable local link → plain text
+    }
+  });
+  var srcEl = d.querySelector('#sources');
+  if (srcEl) {
+    n.sources.forEach(function (s) {
+      var row = document.createElement('div');
+      if (s.id) { var sid = document.createElement('span'); sid.className = 'sid'; sid.textContent = '[^' + s.id + ']'; row.appendChild(sid); }
+      var label = s.title || s.resource || s.id;
+      if (s.concept) {
+        var a = document.createElement('a');
+        a.textContent = label + ' — ' + s.concept;
+        a.addEventListener('click', function () { select(s.concept); });
+        row.appendChild(a);
+      } else if (/^[a-z][a-z0-9+.-]*:/i.test(s.resource)) {
+        var ext = document.createElement('a');
+        ext.textContent = label; ext.href = s.resource; ext.target = '_blank'; ext.rel = 'noopener';
+        row.appendChild(ext);
+      } else {
+        row.appendChild(document.createTextNode(label + (s.title && s.resource ? ' — ' + s.resource : '')));
+      }
+      srcEl.appendChild(row);
+    });
+  }
+  var back = inbound[id] || [];
+  var bl = d.querySelector('#backlinks');
+  bl.innerHTML = '<h3>Linked from (' + back.length + ')</h3>';
+  back.sort().forEach(function (src) {
+    var a = document.createElement('a');
+    a.textContent = nodeById[src].title + ' — ' + src;
+    a.addEventListener('click', function () { select(src); });
+    bl.appendChild(a);
+  });
+}
+
+function select(id) {
+  cy.elements().unselect();
+  var el = cy.getElementById(id);
+  el.select();
+  cy.animate({ center: { eles: el }, duration: 200 });
+  show(id);
+}
+
+cy.on('tap', 'node', function (ev) { show(ev.target.id()); });
+</script>
+</body>
+</html>
+"""
 
 
 def opt(args, flag, default):

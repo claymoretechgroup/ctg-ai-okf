@@ -2,7 +2,7 @@
 type: Decision
 title: Type Taxonomy (proposed)
 description: Model-proposed taxonomy, unratified.
-status: proposed
+status: draft
 ---
 ### Idea
 - **Criteria**: fixture.

@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
-"""okf.py - zero-dependency tooling for OKF v0.1 bundles."""
+"""okf.py - zero-dependency tooling for OKF v0.2 bundles."""
 
 import os
 import re
 import sys
 
 
+OKF_VERSION = "0.2"
 RESERVED = {"index.md", "log.md"}
 SKIP_DIRS = {".git", "node_modules"}
 LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+FOOTNOTE_RE = re.compile(r"\[\^([^\]\s]+)\]")
+URL_RE = re.compile(r"^[a-z][a-z0-9+.-]*:", re.I)
+# ISO 8601 datetime with an explicit UTC offset (SPEC §5).
+TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$")
+# Actor convention (SPEC §7): <producer>/<version>, human:<id>, process:<id>.
+ACTOR_RE = re.compile(r"^(?:\S+/\S+|human:\S+|process:\S+)$")
+STATUS_VALUES = ("draft", "stable", "deprecated")
+ATTESTED_COMPUTATION = "Attested Computation"
 
 
 class OkfError(Exception):
@@ -52,60 +61,180 @@ def split_frontmatter(text):
     return text[4:end], "" if after == -1 else text[after + 1 :]
 
 
+# --- YAML-lite -------------------------------------------------------------
+#
+# The subset of YAML that OKF frontmatter uses: block mappings, block
+# sequences (of scalars, flow mappings, or block mappings), flow sequences
+# `[a, b]`, flow mappings `{ by: x, at: y }`, quoted and plain scalars,
+# `|`/`>` block scalars, comments. Scalars stay strings — the tools only
+# ever compare and print them.
+
+KEY_RE = re.compile(r"^([^:\s\[{\"'#-][^:]*):(.*)$")
+INLINE_KEY_RE = re.compile(r"^([^:\s\[{\"'#-][^:]*):(?:\s|$)")
+
+
+def strip_comment(raw):
+    s = raw.strip()
+    if not s or s[0] in "\"'":
+        return s
+    for i, ch in enumerate(s):
+        if ch == "#" and i > 0 and s[i - 1] in " \t":
+            return s[:i].rstrip()
+    return s
+
+
+def split_top_level(inner):
+    parts, depth, quote, cur = [], 0, None, []
+    for ch in inner:
+        if quote:
+            cur.append(ch)
+            if ch == quote:
+                quote = None
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch in "[{":
+            depth += 1
+        elif ch in "]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+            continue
+        cur.append(ch)
+    tail = "".join(cur)
+    if tail.strip() != "" or parts:
+        parts.append(tail)
+    return [p.strip() for p in parts if p.strip() != ""]
+
+
 def parse_scalar(raw):
-    value = raw.strip()
+    value = strip_comment(raw)
     if value.startswith("[") and value.endswith("]"):
-        inner = value[1:-1].strip()
-        return [] if inner == "" else [parse_scalar(part) for part in inner.split(",")]
-    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
-        return value[1:-1]
+        return [parse_scalar(part) for part in split_top_level(value[1:-1])]
+    if value.startswith("{") and value.endswith("}"):
+        out = {}
+        for part in split_top_level(value[1:-1]):
+            m = re.match(r"^([^:\s\"'][^:]*?)\s*:(?:\s+(.*)|$)", part)
+            if not m:
+                raise OkfError(f"unparseable flow mapping entry: {json_string(part)}")
+            out[m.group(1).strip()] = parse_scalar(m.group(2) or "")
+        return out
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        inner = value[1:-1]
+        return inner.replace('\\"', '"') if value[0] == '"' else inner.replace("''", "'")
     return value
 
 
-def parse_yaml_lite(src):
-    out = {}
-    pending_key = None
-    last_scalar_key = None
-    for line in src.split("\n"):
-        t = line.strip()
-        if t == "" or t.startswith("#"):
-            continue
-        indented = bool(re.match(r"\s", line))
-        is_list_item = t.startswith("- ") or t == "-"
-        if is_list_item and pending_key is not None:
-            if not isinstance(out.get(pending_key), list):
-                out[pending_key] = []
-            out[pending_key].append(parse_scalar(t[1:]))
-            continue
-        if indented:
-            if pending_key is not None:
-                m = re.match(r"^([^:\s][^:]*):(.*)$", t)
-                if m:
-                    if not isinstance(out.get(pending_key), dict):
-                        out[pending_key] = {}
-                    out[pending_key][m.group(1).strip()] = parse_scalar(m.group(2))
-                    continue
-            if last_scalar_key is not None and isinstance(out.get(last_scalar_key), str):
-                out[last_scalar_key] = f"{out[last_scalar_key]} {t}".strip()
+class _Lines:
+    def __init__(self, src):
+        self.items = []
+        for line in src.split("\n"):
+            if line.strip() == "" or line.strip().startswith("#"):
                 continue
-            raise OkfError(f"unparseable frontmatter line: {json_string(line)}")
-        m = re.match(r"^([^:\s][^:]*):(.*)$", line)
+            expanded = line.replace("\t", "  ")
+            self.items.append((len(expanded) - len(expanded.lstrip(" ")), expanded.strip(), line))
+        self.i = 0
+
+    def peek(self):
+        return self.items[self.i] if self.i < len(self.items) else None
+
+
+def _is_item(content):
+    return content == "-" or content.startswith("- ")
+
+
+def _parse_block(lines, indent):
+    cur = lines.peek()
+    if cur is None or cur[0] < indent:
+        return None
+    if _is_item(cur[1]):
+        return _parse_sequence(lines, cur[0])
+    return _parse_mapping(lines, cur[0])
+
+
+def _collect_block_scalar(lines, indent, folded):
+    parts = []
+    while True:
+        cur = lines.peek()
+        if cur is None or cur[0] <= indent:
+            break
+        parts.append(cur[1])
+        lines.i += 1
+    return (" " if folded else "\n").join(parts)
+
+
+def _parse_mapping(lines, indent):
+    out = {}
+    last_key = None
+    while True:
+        cur = lines.peek()
+        if cur is None or cur[0] < indent:
+            return out
+        if cur[0] > indent:
+            if last_key is not None and isinstance(out.get(last_key), str) and not _is_item(cur[1]):
+                out[last_key] = f"{out[last_key]} {strip_comment(cur[1])}".strip()
+                lines.i += 1
+                continue
+            raise OkfError(f"unparseable frontmatter line: {json_string(cur[2])}")
+        if _is_item(cur[1]):
+            if last_key is not None and out.get(last_key) is None:
+                out[last_key] = _parse_sequence(lines, indent)
+                continue
+            raise OkfError(f"unparseable frontmatter line: {json_string(cur[2])}")
+        m = KEY_RE.match(cur[1])
         if not m:
-            raise OkfError(f"unparseable frontmatter line: {json_string(line)}")
+            raise OkfError(f"unparseable frontmatter line: {json_string(cur[2])}")
         key = m.group(1).strip()
-        rest = m.group(2).strip()
+        rest = strip_comment(m.group(2))
+        lines.i += 1
+        last_key = key
         if rest == "":
-            pending_key = key
-            last_scalar_key = None
-            out[key] = None
+            nxt = lines.peek()
+            if nxt is not None and nxt[0] > indent:
+                out[key] = _parse_block(lines, nxt[0])
+            elif nxt is not None and nxt[0] == indent and _is_item(nxt[1]):
+                out[key] = None  # sequence at the same indent; picked up above
+            else:
+                out[key] = None
         elif re.match(r"^[>|][+-]?$", rest):
-            pending_key = None
-            last_scalar_key = key
-            out[key] = ""
+            out[key] = _collect_block_scalar(lines, indent, rest[0] == ">")
         else:
-            pending_key = None
             out[key] = parse_scalar(rest)
-            last_scalar_key = key if isinstance(out[key], str) else None
+
+
+def _parse_sequence(lines, indent):
+    items = []
+    while True:
+        cur = lines.peek()
+        if cur is None or cur[0] != indent or not _is_item(cur[1]):
+            if cur is not None and cur[0] > indent:
+                raise OkfError(f"unparseable frontmatter line: {json_string(cur[2])}")
+            return items
+        after = cur[1][1:]
+        rest = after.lstrip()
+        col = indent + 1 + (len(after) - len(rest))
+        if rest == "":
+            lines.i += 1
+            nxt = lines.peek()
+            items.append(_parse_block(lines, nxt[0]) if nxt is not None and nxt[0] > indent else None)
+        elif INLINE_KEY_RE.match(rest):
+            lines.items[lines.i] = (col, rest, cur[2])
+            items.append(_parse_mapping(lines, col))
+        else:
+            lines.i += 1
+            items.append(parse_scalar(rest))
+
+
+def parse_yaml_lite(src):
+    lines = _Lines(src)
+    if lines.peek() is None:
+        return {}
+    if _is_item(lines.peek()[1]):
+        raise OkfError(f"unparseable frontmatter line: {json_string(lines.peek()[2])}")
+    out = _parse_mapping(lines, lines.peek()[0])
+    if lines.peek() is not None:
+        raise OkfError(f"unparseable frontmatter line: {json_string(lines.peek()[2])}")
     return out
 
 
@@ -132,6 +261,158 @@ def title_for(path, frontmatter):
     return re.sub(r"\b\w", lambda m: m.group(0).upper(), text)
 
 
+# --- v0.2 frontmatter families (SPEC §5, §7, §10) ---------------------------
+
+
+def normalize_verified(fm):
+    """`verified` as a list of events; a bare mapping is a one-element list (§5.2)."""
+    v = fm.get("verified") if isinstance(fm, dict) else None
+    if isinstance(v, dict):
+        return [v]
+    if isinstance(v, list):
+        return [e for e in v if isinstance(e, dict)]
+    return []
+
+
+def trust_tier(fm):
+    """unverified | machine-confirmed | human-reviewed (§5.3)."""
+    if not isinstance(fm, dict) or "verified" not in fm:
+        return "unverified"
+    events = normalize_verified(fm)
+    if any(str(e.get("by", "")).startswith("human:") for e in events):
+        return "human-reviewed"
+    return "machine-confirmed" if events else "unverified"
+
+
+def status_of(fm):
+    s = fm.get("status") if isinstance(fm, dict) else None
+    return s if isinstance(s, str) and s.strip() else "stable"
+
+
+def sources_of(fm):
+    s = fm.get("sources") if isinstance(fm, dict) else None
+    return [e for e in s if isinstance(e, dict)] if isinstance(s, list) else []
+
+
+def is_timestamp(value):
+    return isinstance(value, str) and TIMESTAMP_RE.match(value.strip()) is not None
+
+
+def check_families(r, fm, body, violations, warnings):
+    """Family-level checks for one concept. REQUIRED-within-family fields are
+    violations; format and convention problems are warnings (§11)."""
+
+    def ts(label, value, ref):
+        if value is not None and not is_timestamp(value):
+            warnings.append(f"{r}: {label} {json_string(value)} is not an ISO 8601 datetime with an explicit offset (SPEC {ref})")
+
+    def actor(label, value):
+        if not isinstance(value, str) or not ACTOR_RE.match(value.strip()):
+            warnings.append(f"{r}: {label} {json_string(value)} does not follow the actor convention <producer>/<version>, human:<id>, process:<id> (SPEC §7)")
+
+    # lifecycle
+    if "status" in fm and status_of(fm) not in STATUS_VALUES:
+        warnings.append(f"{r}: status {json_string(fm.get('status'))} is not one of draft | stable | deprecated (SPEC §5.4)")
+    if "stale_after" in fm:
+        ts("stale_after", fm.get("stale_after"), "§5.5")
+
+    # trust
+    if "generated" in fm:
+        g = fm.get("generated")
+        if not isinstance(g, dict):
+            violations.append(f"{r}: generated must be a {{ by, at }} mapping (SPEC §5.2)")
+        else:
+            if not g.get("by"):
+                violations.append(f"{r}: generated.by is required within generated (SPEC §5.2)")
+            else:
+                actor("generated.by", g.get("by"))
+            ts("generated.at", g.get("at"), "§5.2")
+    if "verified" in fm:
+        v = fm.get("verified")
+        if not isinstance(v, (dict, list)):
+            violations.append(f"{r}: verified must be a {{ by, at }} mapping or a list of them (SPEC §5.2)")
+        else:
+            for i, e in enumerate(v if isinstance(v, list) else [v]):
+                if not isinstance(e, dict):
+                    violations.append(f"{r}: verified[{i}] must be a {{ by, at }} mapping (SPEC §5.2)")
+                    continue
+                if not e.get("by"):
+                    violations.append(f"{r}: verified[{i}].by is required (SPEC §5.2)")
+                else:
+                    actor(f"verified[{i}].by", e.get("by"))
+                if "at" not in e:
+                    warnings.append(f"{r}: verified[{i}] has no at — recency is the latest at (SPEC §5.2)")
+                else:
+                    ts(f"verified[{i}].at", e.get("at"), "§5.2")
+
+    # provenance
+    ids = set()
+    has_shared_window = "usage_window" in fm
+    if "usage_window" in fm:
+        check_window(r, "usage_window", fm.get("usage_window"), warnings)
+    if "sources" in fm:
+        s = fm.get("sources")
+        if not isinstance(s, list):
+            violations.append(f"{r}: sources must be a list of entries (SPEC §5.1)")
+        else:
+            for i, e in enumerate(s):
+                if not isinstance(e, dict):
+                    violations.append(f"{r}: sources[{i}] must be a mapping with a resource (SPEC §5.1)")
+                    continue
+                if not e.get("resource"):
+                    violations.append(f"{r}: sources[{i}] has no resource — REQUIRED within an entry (SPEC §5.1)")
+                if e.get("id"):
+                    if e["id"] in ids:
+                        warnings.append(f"{r}: sources[{i}].id {json_string(e['id'])} duplicates an earlier entry — footnotes join on id (SPEC §5.1)")
+                    ids.add(e["id"])
+                if "last_modified" in e:
+                    ts(f"sources[{i}].last_modified", e.get("last_modified"), "§5.1")
+                if "usage_window" in e:
+                    check_window(r, f"sources[{i}].usage_window", e.get("usage_window"), warnings)
+                elif "usage_count" in e and not has_shared_window:
+                    warnings.append(f"{r}: sources[{i}].usage_count has no usage_window to frame it (SPEC §5.1)")
+    for label in sorted(set(FOOTNOTE_RE.findall(body))):
+        if label not in ids:
+            warnings.append(f"{r}: footnote [^{label}] has no matching sources[].id (SPEC §5.1)")
+
+    # v0.1 leftovers (§13.1)
+    if "timestamp" in fm:
+        warnings.append(f"{r}: legacy v0.1 timestamp — superseded by generated.at (SPEC §13.1)")
+    if re.search(r"^#{1,6}\s*Citations\s*$", body, re.M):
+        warnings.append(f"{r}: legacy v0.1 # Citations section — superseded by sources (SPEC §13.1)")
+
+    # computation (§10)
+    if isinstance(fm.get("type"), str) and fm["type"].strip() == ATTESTED_COMPUTATION:
+        if not fm.get("runtime"):
+            violations.append(f"{r}: runtime is REQUIRED for type {ATTESTED_COMPUTATION} (SPEC §10.2)")
+        p = fm.get("parameters")
+        if p is not None:
+            if not isinstance(p, list):
+                warnings.append(f"{r}: parameters should be a list of {{ name, type, required }} (SPEC §10.2)")
+            else:
+                for i, e in enumerate(p):
+                    if not isinstance(e, dict) or not e.get("name") or not e.get("type"):
+                        warnings.append(f"{r}: parameters[{i}] should carry name and type (SPEC §10.2)")
+        if not fm.get("computation") and not re.search(r"^#{1,6}\s*Computation\s*$", body, re.M):
+            warnings.append(f"{r}: no computation — neither a computation path nor a # Computation body section (SPEC §10.3)")
+        for key in ("executor", "attester"):
+            if key in fm:
+                e = fm.get(key)
+                if not isinstance(e, dict) or not e.get("resource"):
+                    warnings.append(f"{r}: {key} should be a mapping with a resource (SPEC §10.2)")
+                elif key == "executor" and not isinstance(e.get("receipt"), list):
+                    warnings.append(f"{r}: executor.receipt should list the fields a run must return (SPEC §10.2)")
+
+
+def check_window(r, label, w, warnings):
+    if not isinstance(w, dict) or "from" not in w or "to" not in w:
+        warnings.append(f"{r}: {label} should be a {{ from, to }} datetime range (SPEC §5.1)")
+        return
+    for k in ("from", "to"):
+        if not is_timestamp(w.get(k)):
+            warnings.append(f"{r}: {label}.{k} {json_string(w.get(k))} is not an ISO 8601 datetime with an explicit offset (SPEC §5.1)")
+
+
 def validate(bundle):
     violations = []
     warnings = []
@@ -147,24 +428,67 @@ def validate(bundle):
         if name == "index.md":
             is_root = os.path.dirname(path) == root
             if doc["frontmatter"] is not None and not is_root:
-                violations.append(f"{r}: index.md may only carry frontmatter at the bundle root (SPEC §11)")
+                violations.append(f"{r}: index.md may only carry frontmatter at the bundle root (SPEC §8)")
+            if is_root and isinstance(doc["frontmatter"], dict):
+                declared = doc["frontmatter"].get("okf_version")
+                if declared is not None and str(declared) != OKF_VERSION:
+                    warnings.append(f"{r}: bundle declares okf_version {json_string(declared)} — this tool checks OKF v{OKF_VERSION} (SPEC §12)")
             continue
         if name == "log.md":
             for h in re.finditer(r"^## +(.+)$", doc["body"], re.M):
                 value = h.group(1).strip()
                 if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
-                    violations.append(f"{r}: log date heading {json_string(value)} is not ISO YYYY-MM-DD (SPEC §7)")
+                    violations.append(f"{r}: log date heading {json_string(value)} is not ISO YYYY-MM-DD (SPEC §9)")
             continue
         fm = doc["frontmatter"]
         if fm is None:
-            violations.append(f"{r}: concept document has no frontmatter block (SPEC §9.1)")
+            violations.append(f"{r}: concept document has no frontmatter block (SPEC §11.1)")
             continue
         typ = fm.get("type")
         if not isinstance(typ, str) or typ.strip() == "":
-            violations.append(f'{r}: frontmatter has no non-empty "type" field (SPEC §9.2)')
+            violations.append(f'{r}: frontmatter has no non-empty "type" field (SPEC §11.2)')
         if not fm.get("description"):
             warnings.append(f'{r}: no "description" — index entries and previews will be empty')
+        check_families(r, fm, doc["body"], violations, warnings)
     return violations, warnings
+
+
+# --- links and path-valued fields (SPEC §6) ---------------------------------
+
+
+def resolve_path(root, from_path, target):
+    """Resolve a bundle-relative (/x), relative (./x, ../x), or bare relative
+    path. Bare relative paths try the concept's directory first, then the
+    bundle root (the spec's own examples use root-relative bare paths)."""
+    if target.startswith("/"):
+        return [os.path.join(root, target.lstrip("/"))]
+    here = os.path.realpath(os.path.join(os.path.dirname(from_path), target))
+    if target.startswith("./") or target.startswith("../"):
+        return [here]
+    return [here, os.path.realpath(os.path.join(root, target))]
+
+
+def exists_any(candidates):
+    return any(os.path.exists(c) for c in candidates)
+
+
+def path_fields(fm):
+    """(label, value, unambiguous) for every path-valued field (§6.2).
+    `resource` and `sources[].resource` may be a URI or scope descriptor, so
+    only their explicit path forms are checked."""
+    out = []
+    if isinstance(fm.get("resource"), str):
+        out.append(("resource", fm["resource"], False))
+    for i, e in enumerate(sources_of(fm)):
+        if isinstance(e.get("resource"), str):
+            out.append((f"sources[{i}].resource", e["resource"], False))
+    if isinstance(fm.get("computation"), str):
+        out.append(("computation", fm["computation"], True))
+    for key in ("executor", "attester"):
+        e = fm.get(key)
+        if isinstance(e, dict) and isinstance(e.get("resource"), str):
+            out.append((f"{key}.resource", e["resource"], True))
+    return out
 
 
 def check_links(bundle):
@@ -172,17 +496,31 @@ def check_links(bundle):
     broken = []
     for path in walk(root):
         try:
-            body = read_doc(path)["body"]
+            doc = read_doc(path)
         except OkfError:
             continue
-        for m in LINK_RE.finditer(body):
+        for m in LINK_RE.finditer(doc["body"]):
             target = m.group(1).split("#", 1)[0]
-            if target == "" or re.match(r"^[a-z][a-z0-9+.-]*:", target, re.I):
+            if target == "" or URL_RE.match(target):
                 continue
-            abs_path = os.path.join(root, target.lstrip("/")) if target.startswith("/") else os.path.realpath(os.path.join(os.path.dirname(path), target))
-            if not os.path.exists(abs_path):
+            if not exists_any(resolve_path(root, path, target)[:1]):
                 broken.append(f"{rel(root, path)} -> {m.group(1)}")
+        fm = doc["frontmatter"]
+        if not isinstance(fm, dict):
+            continue
+        for label, value, unambiguous in path_fields(fm):
+            v = value.strip()
+            if v == "" or URL_RE.match(v):
+                continue
+            explicit = v.startswith("/") or v.startswith("./") or v.startswith("../")
+            if not explicit and not unambiguous:
+                continue
+            if not exists_any(resolve_path(root, path, v)):
+                broken.append(f"{rel(root, path)} -> {label}: {value}")
     return broken
+
+
+# --- indexes (SPEC §8) ------------------------------------------------------
 
 
 def build_index(dir_path, root):
@@ -246,6 +584,9 @@ def generate_indexes(bundle, write=False):
                 fh.write(content)
         results.append({"path": rel(root, index_path) or "index.md", "changed": changed, "content": content})
     return results
+
+
+# --- tag and type registries -------------------------------------------------
 
 
 def parse_tag_registry(text):
@@ -375,6 +716,9 @@ def type_report(bundle, taxonomy_path):
     }
 
 
+# --- CLI ---------------------------------------------------------------------
+
+
 def main(argv):
     if len(argv) < 2:
         sys.stderr.write("usage: okf.py <validate|links|index|tags|types> <bundle-dir> [--write] [--registry <file>] [--taxonomy <file>]\n")
@@ -397,7 +741,7 @@ def main(argv):
         broken = check_links(bundle)
         for b in broken:
             print(f"broken: {b}")
-        print(f"\n{len(broken)} broken internal link(s) (tolerated per SPEC §5.3 — may be not-yet-written knowledge)")
+        print(f"\n{len(broken)} broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)")
         return 0
 
     if cmd == "index":

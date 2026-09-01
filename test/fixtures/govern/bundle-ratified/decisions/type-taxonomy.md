@@ -2,7 +2,7 @@
 type: Decision
 title: Type Taxonomy
 description: Ratified taxonomy.
-status: ratified
+status: stable
 ratified: 2026-07-06
 ---
 ### Idea

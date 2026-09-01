@@ -11,6 +11,7 @@
   #side { width: 230px; min-width: 230px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fafafa; }
   #side h1 { font-size: 15px; margin: 0 0 4px; }
   #side .meta { color: #777; font-size: 12px; margin-bottom: 10px; }
+  #side h3 { font-size: 12px; color: #666; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
   #search { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }
   .typerow { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 13px; cursor: pointer; }
   .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
@@ -20,10 +21,24 @@
   #detail .placeholder { color: #999; margin-top: 40%; text-align: center; }
   #detail h2 { margin: 0 0 2px; font-size: 18px; }
   .chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; color: #fff; margin-right: 6px; }
+  .chip.soft { background: #e5e5e5; color: #444; }
+  .chip.human { background: #59a14f; }
+  .chip.machine { background: #76b7b2; }
+  .chip.stale, .chip.deprecated { background: #e15759; }
+  .chip.draft { background: #edc949; color: #333; }
   .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: #eee; color: #555; margin: 0 4px 4px 0; }
   .cid { color: #999; font-size: 12px; font-family: monospace; margin-bottom: 6px; }
   .desc { color: #444; font-style: italic; margin: 6px 0 10px; }
   .res a { font-size: 12px; word-break: break-all; }
+  .trust { font-size: 12px; color: #666; margin: 8px 0; }
+  .trust div { margin: 1px 0; }
+  .trust .actor { font-family: monospace; color: #444; }
+  .trust .stale-note { color: #c0392b; }
+  #sources { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #sources h3, #backlinks h3 { font-size: 13px; margin: 0 0 6px; color: #666; }
+  #sources div { font-size: 13px; margin: 2px 0; }
+  #sources .sid { font-family: monospace; color: #999; font-size: 11px; margin-right: 6px; }
+  #sources a { color: #2a6fb0; cursor: pointer; word-break: break-all; }
   #body { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
   #body table { border-collapse: collapse; font-size: 12px; }
   #body th, #body td { border: 1px solid #ddd; padding: 3px 7px; text-align: left; }
@@ -31,7 +46,6 @@
   #body code { background: #f5f5f5; font-size: 12px; }
   #body a { color: #2a6fb0; }
   #backlinks { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
-  #backlinks h3 { font-size: 13px; margin: 0 0 6px; color: #666; }
   #backlinks a { display: block; font-size: 13px; margin: 2px 0; color: #2a6fb0; cursor: pointer; }
 </style>
 </head>
@@ -39,28 +53,37 @@
 <div id="side">
   <h1 id="bname"></h1>
   <div class="meta" id="bmeta"></div>
-  <input id="search" placeholder="search title / id / tags…">
+  <input id="search" placeholder="search title / id / tags / trust…">
+  <h3>Types</h3>
   <div id="types"></div>
+  <h3>Lifecycle</h3>
+  <label class="typerow"><input type="checkbox" id="hide-deprecated"> hide deprecated</label>
+  <label class="typerow"><input type="checkbox" id="hide-stale"> hide stale</label>
   <button id="fit">Fit graph</button>
 </div>
 <div id="cy"></div>
 <div id="detail"><div class="placeholder">Select a concept</div></div>
 <script>
-var DATA = {"name":"corpus","types":["Untyped"],"colors":{"Untyped":"#4e79a7"},"nodes":[{"id":"a","type":"Untyped","title":"a","description":"","tags":[],"resource":"","timestamp":"","body":"# a\n\nDaren Farmer approved the nom. Daren J Farmer signed again. Storage Withdrawal continues.\n"},{"id":"b","type":"Untyped","title":"b","description":"","tags":[],"resource":"","timestamp":"","body":"# b\n\nDaren Farmer replied about gas volumes.\n"}],"edges":[]};
+var DATA = {"name":"corpus","types":["Untyped"],"colors":{"Untyped":"#4e79a7"},"nodes":[{"id":"a","type":"Untyped","title":"a","description":"","tags":[],"resource":"","status":"stable","trust":"unverified","generated":null,"verified":[],"stale_after":"","runtime":"","sources":[],"timestamp":"","body":"# a\n\nDaren Farmer approved the nom. Daren J Farmer signed again. Storage Withdrawal continues.\n"},{"id":"b","type":"Untyped","title":"b","description":"","tags":[],"resource":"","status":"stable","trust":"unverified","generated":null,"verified":[],"stale_after":"","runtime":"","sources":[],"timestamp":"","body":"# b\n\nDaren Farmer replied about gas volumes.\n"}],"edges":[]};
+var NOW = Date.now();
 document.getElementById('bname').textContent = DATA.name;
 document.getElementById('bmeta').textContent = DATA.nodes.length + ' concepts · ' + DATA.edges.length + ' links';
 
 var nodeById = {};
-DATA.nodes.forEach(function (n) { nodeById[n.id] = n; });
+DATA.nodes.forEach(function (n) {
+  nodeById[n.id] = n;
+  var t = n.stale_after ? Date.parse(n.stale_after) : NaN;
+  n.stale = !isNaN(t) && NOW >= t;   // SPEC §5.5: stale when now >= stale_after
+});
 var inbound = {};
 DATA.edges.forEach(function (e) { (inbound[e.target] = inbound[e.target] || []).push(e.source); });
 
 var cy = cytoscape({
   container: document.getElementById('cy'),
   elements: DATA.nodes.map(function (n) {
-    return { data: { id: n.id, label: n.title, type: n.type } };
+    return { data: { id: n.id, label: n.title, type: n.type, status: n.status, stale: n.stale ? 1 : 0 } };
   }).concat(DATA.edges.map(function (e) {
-    return { data: { id: e.source + '->' + e.target, source: e.source, target: e.target } };
+    return { data: { id: e.source + '->' + e.target + '#' + e.kind, source: e.source, target: e.target, kind: e.kind } };
   })),
   style: [
     { selector: 'node', style: {
@@ -70,6 +93,10 @@ var cy = cytoscape({
     { selector: 'edge', style: {
         'width': 1, 'line-color': '#ccc', 'target-arrow-color': '#ccc',
         'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier' } },
+    { selector: 'edge[kind="source"]', style: { 'line-style': 'dashed', 'line-color': '#b8a', 'target-arrow-color': '#b8a' } },
+    { selector: 'node[status="deprecated"]', style: { 'opacity': 0.45, 'border-width': 2, 'border-style': 'dashed', 'border-color': '#888' } },
+    { selector: 'node[status="draft"]', style: { 'border-width': 2, 'border-style': 'dotted', 'border-color': '#b8860b' } },
+    { selector: 'node[stale=1]', style: { 'border-width': 2, 'border-color': '#e15759' } },
     { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#1a1a2e' } },
     { selector: '.dim', style: { 'opacity': 0.12 } },
     { selector: '.hide', style: { 'display': 'none' } }
@@ -102,18 +129,25 @@ function applyFilters() {
   Array.prototype.forEach.call(typesEl.children, function (row) {
     enabled[row.dataset.type] = row.querySelector('input').checked;
   });
+  var hideDeprecated = document.getElementById('hide-deprecated').checked;
+  var hideStale = document.getElementById('hide-stale').checked;
   var q = document.getElementById('search').value.trim().toLowerCase();
   cy.nodes().forEach(function (el) {
     var n = nodeById[el.id()];
-    el.toggleClass('hide', !enabled[n.type]);
+    var hidden = !enabled[n.type] || (hideDeprecated && n.status === 'deprecated') || (hideStale && n.stale);
+    el.toggleClass('hide', hidden);
     var match = !q || n.id.toLowerCase().indexOf(q) >= 0 ||
       n.title.toLowerCase().indexOf(q) >= 0 ||
       n.description.toLowerCase().indexOf(q) >= 0 ||
-      n.tags.join(' ').toLowerCase().indexOf(q) >= 0;
+      n.tags.join(' ').toLowerCase().indexOf(q) >= 0 ||
+      n.trust.indexOf(q) >= 0 || n.status.indexOf(q) >= 0 ||
+      (n.stale && 'stale'.indexOf(q) >= 0);
     el.toggleClass('dim', !match);
   });
 }
 document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('hide-deprecated').addEventListener('change', applyFilters);
+document.getElementById('hide-stale').addEventListener('change', applyFilters);
 document.getElementById('fit').addEventListener('click', function () { cy.fit(undefined, 30); });
 
 function esc(s) {
@@ -136,16 +170,40 @@ function targetIdOf(href, fromId) {
   return nodeById[path] ? path : null;
 }
 
+function actorLine(label, e) {
+  return '<div>' + label + ' <span class="actor">' + esc(e.by || '?') + '</span>' + (e.at ? ' at ' + esc(e.at) : '') + '</div>';
+}
+
+function trustBlock(n) {
+  var out = '';
+  if (n.generated) out += actorLine('generated by', n.generated);
+  else if (n.timestamp) out += '<div>timestamp ' + esc(n.timestamp) + ' <span style="color:#999">(legacy v0.1)</span></div>';
+  n.verified.forEach(function (e) { out += actorLine('verified by', e); });
+  if (n.stale_after) out += '<div' + (n.stale ? ' class="stale-note"' : '') + '>' + (n.stale ? 'stale since ' : 'stale after ') + esc(n.stale_after) + '</div>';
+  if (n.runtime) out += '<div>runtime <span class="actor">' + esc(n.runtime) + '</span></div>';
+  return out ? '<div class="trust">' + out + '</div>' : '';
+}
+
+function chips(n) {
+  var out = '<span class="chip" style="background:' + DATA.colors[n.type] + '">' + esc(n.type) + '</span>';
+  if (n.status !== 'stable') out += '<span class="chip ' + esc(n.status) + '">' + esc(n.status) + '</span>';
+  out += '<span class="chip ' + (n.trust === 'human-reviewed' ? 'human' : n.trust === 'machine-confirmed' ? 'machine' : 'soft') + '">' + esc(n.trust) + '</span>';
+  if (n.stale) out += '<span class="chip stale">stale</span>';
+  return out;
+}
+
 function show(id) {
   var n = nodeById[id];
   var d = document.getElementById('detail');
   var html = '<h2>' + esc(n.title) + '</h2><div class="cid">' + esc(n.id) + '</div>' +
-    '<span class="chip" style="background:' + DATA.colors[n.type] + '">' + esc(n.type) + '</span>' +
-    (n.timestamp ? '<span style="font-size:11px;color:#999">' + esc(n.timestamp) + '</span>' : '') +
+    chips(n) +
     (n.description ? '<div class="desc">' + esc(n.description) + '</div>' : '') +
     (n.tags.length ? '<div>' + n.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
     (n.resource ? '<div class="res">resource: <a href="' + esc(n.resource) + '" target="_blank" rel="noopener">' + esc(n.resource) + '</a></div>' : '') +
-    '<div id="body"></div><div id="backlinks"></div>';
+    trustBlock(n) +
+    '<div id="body"></div>' +
+    (n.sources.length ? '<div id="sources"><h3>Sources (' + n.sources.length + ')</h3></div>' : '') +
+    '<div id="backlinks"></div>';
   d.innerHTML = html;
   var bodyEl = d.querySelector('#body');
   if (window.marked) bodyEl.innerHTML = marked.parse(n.body);
@@ -163,6 +221,27 @@ function show(id) {
       a.replaceWith.apply(a, a.childNodes); // unresolvable local link → plain text
     }
   });
+  var srcEl = d.querySelector('#sources');
+  if (srcEl) {
+    n.sources.forEach(function (s) {
+      var row = document.createElement('div');
+      if (s.id) { var sid = document.createElement('span'); sid.className = 'sid'; sid.textContent = '[^' + s.id + ']'; row.appendChild(sid); }
+      var label = s.title || s.resource || s.id;
+      if (s.concept) {
+        var a = document.createElement('a');
+        a.textContent = label + ' — ' + s.concept;
+        a.addEventListener('click', function () { select(s.concept); });
+        row.appendChild(a);
+      } else if (/^[a-z][a-z0-9+.-]*:/i.test(s.resource)) {
+        var ext = document.createElement('a');
+        ext.textContent = label; ext.href = s.resource; ext.target = '_blank'; ext.rel = 'noopener';
+        row.appendChild(ext);
+      } else {
+        row.appendChild(document.createTextNode(label + (s.title && s.resource ? ' — ' + s.resource : '')));
+      }
+      srcEl.appendChild(row);
+    });
+  }
   var back = inbound[id] || [];
   var bl = d.querySelector('#backlinks');
   bl.innerHTML = '<h3>Linked from (' + back.length + ')</h3>';

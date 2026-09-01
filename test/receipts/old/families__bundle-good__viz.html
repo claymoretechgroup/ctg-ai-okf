@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>bundle-good — OKF bundle</title>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; color: #1a1a2e; display: flex; height: 100vh; }
+  #side { width: 230px; min-width: 230px; border-right: 1px solid #ddd; padding: 12px; overflow-y: auto; background: #fafafa; }
+  #side h1 { font-size: 15px; margin: 0 0 4px; }
+  #side .meta { color: #777; font-size: 12px; margin-bottom: 10px; }
+  #side h3 { font-size: 12px; color: #666; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .04em; }
+  #search { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 5px; margin-bottom: 10px; }
+  .typerow { display: flex; align-items: center; gap: 6px; margin: 3px 0; font-size: 13px; cursor: pointer; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+  #fit { margin-top: 10px; padding: 5px 10px; border: 1px solid #ccc; border-radius: 5px; background: #fff; cursor: pointer; }
+  #cy { flex: 1; min-width: 0; }
+  #detail { width: 420px; min-width: 320px; border-left: 1px solid #ddd; padding: 16px; overflow-y: auto; }
+  #detail .placeholder { color: #999; margin-top: 40%; text-align: center; }
+  #detail h2 { margin: 0 0 2px; font-size: 18px; }
+  .chip { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 9px; color: #fff; margin-right: 6px; }
+  .chip.soft { background: #e5e5e5; color: #444; }
+  .chip.human { background: #59a14f; }
+  .chip.machine { background: #76b7b2; }
+  .chip.stale, .chip.deprecated { background: #e15759; }
+  .chip.draft { background: #edc949; color: #333; }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 9px; background: #eee; color: #555; margin: 0 4px 4px 0; }
+  .cid { color: #999; font-size: 12px; font-family: monospace; margin-bottom: 6px; }
+  .desc { color: #444; font-style: italic; margin: 6px 0 10px; }
+  .res a { font-size: 12px; word-break: break-all; }
+  .trust { font-size: 12px; color: #666; margin: 8px 0; }
+  .trust div { margin: 1px 0; }
+  .trust .actor { font-family: monospace; color: #444; }
+  .trust .stale-note { color: #c0392b; }
+  #sources { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #sources h3, #backlinks h3 { font-size: 13px; margin: 0 0 6px; color: #666; }
+  #sources div { font-size: 13px; margin: 2px 0; }
+  #sources .sid { font-family: monospace; color: #999; font-size: 11px; margin-right: 6px; }
+  #sources a { color: #2a6fb0; cursor: pointer; word-break: break-all; }
+  #body { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #body table { border-collapse: collapse; font-size: 12px; }
+  #body th, #body td { border: 1px solid #ddd; padding: 3px 7px; text-align: left; }
+  #body pre { background: #f5f5f5; padding: 8px; border-radius: 5px; overflow-x: auto; font-size: 12px; }
+  #body code { background: #f5f5f5; font-size: 12px; }
+  #body a { color: #2a6fb0; }
+  #backlinks { border-top: 1px solid #eee; margin-top: 12px; padding-top: 10px; }
+  #backlinks a { display: block; font-size: 13px; margin: 2px 0; color: #2a6fb0; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="side">
+  <h1 id="bname"></h1>
+  <div class="meta" id="bmeta"></div>
+  <input id="search" placeholder="search title / id / tags / trust…">
+  <h3>Types</h3>
+  <div id="types"></div>
+  <h3>Lifecycle</h3>
+  <label class="typerow"><input type="checkbox" id="hide-deprecated"> hide deprecated</label>
+  <label class="typerow"><input type="checkbox" id="hide-stale"> hide stale</label>
+  <button id="fit">Fit graph</button>
+</div>
+<div id="cy"></div>
+<div id="detail"><div class="placeholder">Select a concept</div></div>
+<script>
+var DATA = {"name":"bundle-good","types":["Attested Computation","Log","Metric","Reference"],"colors":{"Attested Computation":"#4e79a7","Log":"#f28e2b","Metric":"#e15759","Reference":"#76b7b2"},"nodes":[{"id":"computations/profit","type":"Attested Computation","title":"Gross profit for fiscal year","description":"Gross profit by segment for a fiscal year, per the cost-allocation standard.","tags":["finance","profit"],"resource":"","status":"deprecated","trust":"machine-confirmed","generated":{"by":"reference_agent/gemini-2.5-pro","at":"2026-06-14T14:00:00Z"},"verified":[{"by":"process:finance-nightly","at":"2026-06-12T08:00:00Z"}],"stale_after":"2026-06-15T00:00:00Z","runtime":"dbt","sources":[{"id":"cost-alloc","resource":"https://wiki.acme/finance/cost-allocation","title":"Cost allocation standard"}],"timestamp":"","body":"\nGross profit by segment per the cost-allocation standard.[^cost-alloc]\nThe computation lives in a file (see `computation`).\n\n[^cost-alloc]: Cost allocation standard\n"},{"id":"computations/revenue","type":"Attested Computation","title":"Revenue for fiscal year","description":"Recognized revenue for a fiscal year, per Finance's definition.","tags":["finance","revenue"],"resource":"","status":"stable","trust":"human-reviewed","generated":{"by":"reference_agent/gemini-2.5-pro","at":"2026-06-28T14:00:00Z"},"verified":[{"by":"process:finance-nightly","at":"2026-06-26T02:00:00Z"},{"by":"human:ahormati","at":"2026-06-25T09:00:00Z"}],"stale_after":"2099-12-31T00:00:00Z","runtime":"bigquery","sources":[{"id":"rev-policy","resource":"https://wiki.acme/finance/revenue-recognition","title":"Revenue recognition policy"},{"id":"exec-rev-dash","resource":"dashboards/exec-revenue","title":"Executive revenue dashboard"}],"timestamp":"","body":"\n# Computation\n\n    SELECT SUM(amount) AS revenue\n    FROM finance.recognized_revenue\n    WHERE fiscal_year = @year\n\nRecognized revenue per the recognition policy,[^rev-policy] corroborated by\nthe executive revenue dashboard.[^exec-rev-dash]\n\n[^rev-policy]: Revenue recognition policy\n[^exec-rev-dash]: Executive revenue dashboard\n"},{"id":"log","type":"Log","title":"log","description":"","tags":[],"resource":"","status":"stable","trust":"unverified","generated":null,"verified":[],"stale_after":"","runtime":"","sources":[],"timestamp":"","body":"# Bundle Update Log\n\n## 2026-08-31\n* **Creation**: Established the income-statement metric and its two attested computations.\n"},{"id":"metrics/income-statement","type":"Metric","title":"Income statement (fiscal year)","description":"Headline income-statement figures for a fiscal year.","tags":["finance","income-statement"],"resource":"","status":"stable","trust":"human-reviewed","generated":{"by":"reference_agent/gemini-2.5-pro","at":"2026-06-20T22:53:05Z"},"verified":[{"by":"human:ahormati","at":"2026-06-25T09:00:00Z"}],"stale_after":"2099-12-31T00:00:00Z","runtime":"","sources":[{"id":"fpa-handbook","resource":"https://wiki.acme/finance/fpa-handbook","title":"FP&A reporting handbook"},{"id":"revenue","resource":"/computations/revenue.md","title":"Revenue computation","concept":"computations/revenue"}],"timestamp":"","body":"\n# Definition\nThe income statement reports [revenue](../computations/revenue.md) and\n[gross profit](../computations/profit.md) for a fiscal year, per the FP&A\nreporting handbook.[^fpa-handbook] Revenue derives from its own\ncomputation.[^revenue]\n\n[^fpa-handbook]: FP&A reporting handbook\n[^revenue]: Revenue computation\n"},{"id":"references/skills/run-on-bq","type":"Reference","title":"Run on BigQuery","description":"Executor run instructions — submit the bound SQL as a BigQuery job and return the receipt.","tags":[],"resource":"","status":"stable","trust":"unverified","generated":{"by":"human:ahormati","at":"2026-06-20T09:00:00Z"},"verified":[],"stale_after":"","runtime":"","sources":[],"timestamp":"","body":"\n# Steps\n\n1. Bind the declared parameters.\n2. Submit the job; return `job_id`, `executed_sql`, `result`.\n"}],"edges":[{"source":"metrics/income-statement","target":"computations/revenue","kind":"link"},{"source":"metrics/income-statement","target":"computations/profit","kind":"link"},{"source":"metrics/income-statement","target":"computations/revenue","kind":"source"}]};
+var NOW = Date.now();
+document.getElementById('bname').textContent = DATA.name;
+document.getElementById('bmeta').textContent = DATA.nodes.length + ' concepts · ' + DATA.edges.length + ' links';
+
+var nodeById = {};
+DATA.nodes.forEach(function (n) {
+  nodeById[n.id] = n;
+  var t = n.stale_after ? Date.parse(n.stale_after) : NaN;
+  n.stale = !isNaN(t) && NOW >= t;   // SPEC §5.5: stale when now >= stale_after
+});
+var inbound = {};
+DATA.edges.forEach(function (e) { (inbound[e.target] = inbound[e.target] || []).push(e.source); });
+
+var cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: DATA.nodes.map(function (n) {
+    return { data: { id: n.id, label: n.title, type: n.type, status: n.status, stale: n.stale ? 1 : 0 } };
+  }).concat(DATA.edges.map(function (e) {
+    return { data: { id: e.source + '->' + e.target + '#' + e.kind, source: e.source, target: e.target, kind: e.kind } };
+  })),
+  style: [
+    { selector: 'node', style: {
+        'label': 'data(label)', 'font-size': 8, 'width': 16, 'height': 16,
+        'text-wrap': 'wrap', 'text-max-width': 90, 'text-valign': 'bottom', 'text-margin-y': 3,
+        'color': '#333', 'background-color': '#999' } },
+    { selector: 'edge', style: {
+        'width': 1, 'line-color': '#ccc', 'target-arrow-color': '#ccc',
+        'target-arrow-shape': 'triangle', 'arrow-scale': 0.7, 'curve-style': 'bezier' } },
+    { selector: 'edge[kind="source"]', style: { 'line-style': 'dashed', 'line-color': '#b8a', 'target-arrow-color': '#b8a' } },
+    { selector: 'node[status="deprecated"]', style: { 'opacity': 0.45, 'border-width': 2, 'border-style': 'dashed', 'border-color': '#888' } },
+    { selector: 'node[status="draft"]', style: { 'border-width': 2, 'border-style': 'dotted', 'border-color': '#b8860b' } },
+    { selector: 'node[stale=1]', style: { 'border-width': 2, 'border-color': '#e15759' } },
+    { selector: 'node:selected', style: { 'border-width': 3, 'border-color': '#1a1a2e' } },
+    { selector: '.dim', style: { 'opacity': 0.12 } },
+    { selector: '.hide', style: { 'display': 'none' } }
+  ].concat(DATA.types.map(function (t) {
+    return { selector: 'node[type="' + t.replace(/"/g, '\\"') + '"]',
+             style: { 'background-color': DATA.colors[t] } };
+  })),
+  layout: { name: 'cose', animate: false, nodeRepulsion: 9000, idealEdgeLength: 60 }
+});
+
+// type filter
+var typesEl = document.getElementById('types');
+DATA.types.forEach(function (t) {
+  var row = document.createElement('label');
+  row.className = 'typerow';
+  var cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.checked = true;
+  cb.addEventListener('change', applyFilters);
+  var sw = document.createElement('span');
+  sw.className = 'swatch'; sw.style.background = DATA.colors[t];
+  var count = DATA.nodes.filter(function (n) { return n.type === t; }).length;
+  row.appendChild(cb); row.appendChild(sw);
+  row.appendChild(document.createTextNode(t + ' (' + count + ')'));
+  row.dataset.type = t;
+  typesEl.appendChild(row);
+});
+
+function applyFilters() {
+  var enabled = {};
+  Array.prototype.forEach.call(typesEl.children, function (row) {
+    enabled[row.dataset.type] = row.querySelector('input').checked;
+  });
+  var hideDeprecated = document.getElementById('hide-deprecated').checked;
+  var hideStale = document.getElementById('hide-stale').checked;
+  var q = document.getElementById('search').value.trim().toLowerCase();
+  cy.nodes().forEach(function (el) {
+    var n = nodeById[el.id()];
+    var hidden = !enabled[n.type] || (hideDeprecated && n.status === 'deprecated') || (hideStale && n.stale);
+    el.toggleClass('hide', hidden);
+    var match = !q || n.id.toLowerCase().indexOf(q) >= 0 ||
+      n.title.toLowerCase().indexOf(q) >= 0 ||
+      n.description.toLowerCase().indexOf(q) >= 0 ||
+      n.tags.join(' ').toLowerCase().indexOf(q) >= 0 ||
+      n.trust.indexOf(q) >= 0 || n.status.indexOf(q) >= 0 ||
+      (n.stale && 'stale'.indexOf(q) >= 0);
+    el.toggleClass('dim', !match);
+  });
+}
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('hide-deprecated').addEventListener('change', applyFilters);
+document.getElementById('hide-stale').addEventListener('change', applyFilters);
+document.getElementById('fit').addEventListener('click', function () { cy.fit(undefined, 30); });
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function targetIdOf(href, fromId) {
+  if (!href || /^[a-z][a-z0-9+.-]*:/i.test(href) || href.charAt(0) === '#') return null;
+  var path = href.split('#')[0].replace(/\.md$/, '');
+  if (path.charAt(0) === '/') path = path.slice(1);
+  else {
+    var base = fromId.indexOf('/') >= 0 ? fromId.slice(0, fromId.lastIndexOf('/')).split('/') : [];
+    var parts = path.split('/');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === '..') base.pop();
+      else if (parts[i] !== '.') base.push(parts[i]);
+    }
+    path = base.join('/');
+  }
+  return nodeById[path] ? path : null;
+}
+
+function actorLine(label, e) {
+  return '<div>' + label + ' <span class="actor">' + esc(e.by || '?') + '</span>' + (e.at ? ' at ' + esc(e.at) : '') + '</div>';
+}
+
+function trustBlock(n) {
+  var out = '';
+  if (n.generated) out += actorLine('generated by', n.generated);
+  else if (n.timestamp) out += '<div>timestamp ' + esc(n.timestamp) + ' <span style="color:#999">(legacy v0.1)</span></div>';
+  n.verified.forEach(function (e) { out += actorLine('verified by', e); });
+  if (n.stale_after) out += '<div' + (n.stale ? ' class="stale-note"' : '') + '>' + (n.stale ? 'stale since ' : 'stale after ') + esc(n.stale_after) + '</div>';
+  if (n.runtime) out += '<div>runtime <span class="actor">' + esc(n.runtime) + '</span></div>';
+  return out ? '<div class="trust">' + out + '</div>' : '';
+}
+
+function chips(n) {
+  var out = '<span class="chip" style="background:' + DATA.colors[n.type] + '">' + esc(n.type) + '</span>';
+  if (n.status !== 'stable') out += '<span class="chip ' + esc(n.status) + '">' + esc(n.status) + '</span>';
+  out += '<span class="chip ' + (n.trust === 'human-reviewed' ? 'human' : n.trust === 'machine-confirmed' ? 'machine' : 'soft') + '">' + esc(n.trust) + '</span>';
+  if (n.stale) out += '<span class="chip stale">stale</span>';
+  return out;
+}
+
+function show(id) {
+  var n = nodeById[id];
+  var d = document.getElementById('detail');
+  var html = '<h2>' + esc(n.title) + '</h2><div class="cid">' + esc(n.id) + '</div>' +
+    chips(n) +
+    (n.description ? '<div class="desc">' + esc(n.description) + '</div>' : '') +
+    (n.tags.length ? '<div>' + n.tags.map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+    (n.resource ? '<div class="res">resource: <a href="' + esc(n.resource) + '" target="_blank" rel="noopener">' + esc(n.resource) + '</a></div>' : '') +
+    trustBlock(n) +
+    '<div id="body"></div>' +
+    (n.sources.length ? '<div id="sources"><h3>Sources (' + n.sources.length + ')</h3></div>' : '') +
+    '<div id="backlinks"></div>';
+  d.innerHTML = html;
+  var bodyEl = d.querySelector('#body');
+  if (window.marked) bodyEl.innerHTML = marked.parse(n.body);
+  else bodyEl.innerHTML = '<pre>' + esc(n.body) + '</pre>';
+  // rewire internal links to in-viewer navigation
+  Array.prototype.forEach.call(bodyEl.querySelectorAll('a'), function (a) {
+    var tid = targetIdOf(a.getAttribute('href'), n.id);
+    if (tid) {
+      a.addEventListener('click', function (ev) { ev.preventDefault(); select(tid); });
+      a.removeAttribute('target');
+    } else if (/^[a-z][a-z0-9+.-]*:/i.test(a.getAttribute('href') || '')) {
+      a.setAttribute('target', '_blank');
+      a.setAttribute('rel', 'noopener');
+    } else {
+      a.replaceWith.apply(a, a.childNodes); // unresolvable local link → plain text
+    }
+  });
+  var srcEl = d.querySelector('#sources');
+  if (srcEl) {
+    n.sources.forEach(function (s) {
+      var row = document.createElement('div');
+      if (s.id) { var sid = document.createElement('span'); sid.className = 'sid'; sid.textContent = '[^' + s.id + ']'; row.appendChild(sid); }
+      var label = s.title || s.resource || s.id;
+      if (s.concept) {
+        var a = document.createElement('a');
+        a.textContent = label + ' — ' + s.concept;
+        a.addEventListener('click', function () { select(s.concept); });
+        row.appendChild(a);
+      } else if (/^[a-z][a-z0-9+.-]*:/i.test(s.resource)) {
+        var ext = document.createElement('a');
+        ext.textContent = label; ext.href = s.resource; ext.target = '_blank'; ext.rel = 'noopener';
+        row.appendChild(ext);
+      } else {
+        row.appendChild(document.createTextNode(label + (s.title && s.resource ? ' — ' + s.resource : '')));
+      }
+      srcEl.appendChild(row);
+    });
+  }
+  var back = inbound[id] || [];
+  var bl = d.querySelector('#backlinks');
+  bl.innerHTML = '<h3>Linked from (' + back.length + ')</h3>';
+  back.sort().forEach(function (src) {
+    var a = document.createElement('a');
+    a.textContent = nodeById[src].title + ' — ' + src;
+    a.addEventListener('click', function () { select(src); });
+    bl.appendChild(a);
+  });
+}
+
+function select(id) {
+  cy.elements().unselect();
+  var el = cy.getElementById(id);
+  el.select();
+  cy.animate({ center: { eles: el }, duration: 200 });
+  show(id);
+}
+
+cy.on('tap', 'node', function (ev) { show(ev.target.id()); });
+</script>
+</body>
+</html>

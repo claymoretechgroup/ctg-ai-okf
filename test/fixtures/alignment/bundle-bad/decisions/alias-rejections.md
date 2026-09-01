@@ -2,7 +2,7 @@
 type: Decision
 title: Rejections (alignment bad fixture)
 description: Coexist verdict that the supersession above contradicts.
-status: proposed
+status: draft
 ---
 
 ```yaml

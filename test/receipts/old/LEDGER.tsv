@@ -65,3 +65,15 @@ join-exclusion/bundle	index	0	join-exclusion__bundle__index.out
 join-exclusion/bundle	types	0	join-exclusion__bundle__types.out	
 join-exclusion/bundle	tags	0	join-exclusion__bundle__tags.out	
 join-exclusion/bundle	viz	0	join-exclusion__bundle__viz.out	join-exclusion__bundle__viz.html
+families/bundle-good	validate	0	families__bundle-good__validate.out	
+families/bundle-good	links	0	families__bundle-good__links.out	
+families/bundle-good	index	0	families__bundle-good__index.out	
+families/bundle-good	types	0	families__bundle-good__types.out	
+families/bundle-good	tags	0	families__bundle-good__tags.out	
+families/bundle-good	viz	0	families__bundle-good__viz.out	families__bundle-good__viz.html
+families/bundle-bad	validate	1	families__bundle-bad__validate.out	
+families/bundle-bad	links	0	families__bundle-bad__links.out	
+families/bundle-bad	index	0	families__bundle-bad__index.out	
+families/bundle-bad	types	0	families__bundle-bad__types.out	
+families/bundle-bad	tags	0	families__bundle-bad__tags.out	
+families/bundle-bad	viz	0	families__bundle-bad__viz.out	families__bundle-bad__viz.html

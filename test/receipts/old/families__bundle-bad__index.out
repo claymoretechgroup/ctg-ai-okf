@@ -1,0 +1,6 @@
+stale  index.md
+stale  computations/index.md
+stale  ideas/index.md
+stale  sub/index.md
+
+run with --write to apply

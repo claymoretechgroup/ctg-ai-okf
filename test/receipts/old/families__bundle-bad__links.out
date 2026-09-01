@@ -1,0 +1,7 @@
+broken: computations/dangling.md -> ../references/skills/missing.md
+broken: computations/dangling.md -> computation: /references/missing.sql
+broken: computations/dangling.md -> executor.resource: ../references/skills/missing.md
+broken: computations/dangling.md -> attester.resource: references/attesters/missing.py
+broken: ideas/sourced.md -> sources[3].resource: /ideas/missing.md
+
+5 broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)

@@ -2,7 +2,7 @@
 type: Decision
 title: Alias Registry (bad fixture)
 description: Exercises every deterministic alias guard — each entry below violates one rule.
-status: proposed
+status: draft
 ---
 
 ```yaml

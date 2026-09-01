@@ -2,7 +2,7 @@
 type: Decision
 title: Alias Rejections (bad fixture)
 description: Rules out a pair the registry declares — the conflict guard must fire.
-status: proposed
+status: draft
 ---
 
 ```yaml
