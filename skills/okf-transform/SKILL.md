@@ -1,14 +1,15 @@
 ---
 name: okf-transform
-description: Convert existing artifacts (design docs, specs, READMEs, code, notes, meeting/conversation summaries) into OKF concept documents, and restructure existing OKF bundles (move, rename, split, merge concepts and rewrite links). Use whenever the user wants to "OKF-ify" something, import or ingest content into a knowledge bundle, migrate docs to OKF, or reorganize a bundle's layout. For authoring brand-new concepts use okf-create-node.
+description: Convert existing artifacts (design docs, specs, READMEs, code, notes, meeting/conversation summaries) into OKF concept documents, restructure existing OKF bundles (move, rename, split, merge concepts and rewrite links), and migrate v0.1 bundles to v0.2. Use whenever the user wants to "OKF-ify" something, import or ingest content into a knowledge bundle, migrate docs to OKF, upgrade a bundle to the current OKF version, or reorganize a bundle's layout. For authoring brand-new concepts use okf-create-node.
 ---
 
 # OKF Transform
 
-Two behaviors, both ending in a conformant bundle: **ingest** (artifact →
-concepts) and **restructure** (reshape an existing bundle). Working spec
-digest is in `okf-create-node/SKILL.md`; the full spec is vendored in this
-suite at `spec/SPEC.md`.
+Three behaviors, all ending in a conformant OKF v0.2 bundle: **ingest**
+(artifact → concepts), **restructure** (reshape an existing bundle), and
+**migrate** (v0.1 bundle → v0.2). Working spec digest is in
+`okf-create-node/SKILL.md`; the full spec is vendored in this suite at
+`spec/SPEC.md`.
 
 ## Ingest: artifact → concepts
 
@@ -30,11 +31,17 @@ unit of source. Don't map one file to one concept by reflex.
    the bundle (`grep -rh '^type:' <bundle> | sort | uniq -c`) before
    minting new ones — consumers route on `type`, and five synonyms for
    "design note" fragment retrieval.
-4. **Record provenance.** Cite the source under `# Citations` (URL,
-   repo path, or a `references/` concept mirroring external material).
-   If the bundle uses provenance frontmatter keys (`produced_by`,
-   `derived_from`), populate them — record what actually happened, don't
-   infer.
+4. **Record provenance in frontmatter** (§5.1). Every ingested concept
+   gets a `sources` entry per material it derives from — `resource`
+   (URL, repo path, `/references/...` concept mirroring external
+   material, or a scope descriptor), an `id`, a `title`, and
+   `last_modified` / `author` when the artifact tells you. Attribute
+   specific claims in the body with `[^id]` footnotes. Set
+   `generated: { by: <you>, at: <now> }` — *you* produced the concept,
+   now; the artifact's own date belongs on `sources[].last_modified`,
+   not on `generated.at`. Do not add `verified` — ingestion is not
+   verification. If the bundle carries additional provenance keys of its
+   own, populate them; record what actually happened, don't infer.
 5. **Cross-link on the way in.** New concepts that join an existing
    bundle should link to the concepts they relate to, and get linked
    *from* them where the relationship matters in both directions. An
@@ -45,12 +52,14 @@ unit of source. Don't map one file to one concept by reflex.
 Moving or renaming a concept **changes its ID** (the ID is the path), so
 the real work is link integrity:
 
-1. Before moving, find inbound links:
-   `grep -rn "old/path.md" <bundle> --include="*.md"`.
-2. Move the file, rewrite every inbound link to the new path
+1. Before moving, find inbound references — body links *and*
+   path-valued frontmatter (`sources[].resource`, `computation`,
+   `executor.resource`, `attester.resource`, §6.2):
+   `grep -rn "old/path" <bundle> --include="*.md"`.
+2. Move the file, rewrite every inbound reference to the new path
    (bundle-relative `/new/path.md` form preferred), and rewrite the
-   moved document's own relative links, which now resolve from a new
-   directory.
+   moved document's own relative links and paths, which now resolve
+   from a new directory.
 3. **Split** when one document holds several independently-linkable
    units of knowledge; leave a link from each fragment to its siblings.
    **Merge** when concepts are near-duplicates fragmenting retrieval;
@@ -58,7 +67,33 @@ the real work is link integrity:
    absorbed one.
 4. Consider leaving a breadcrumb: external consumers may hold old IDs.
    For high-traffic concepts, keep a stub at the old path whose body is
-   one line linking to the new home, `type: Moved`.
+   one line linking to the new home, `type: Moved`, `status: deprecated`.
+
+## Migrate: v0.1 bundle → v0.2
+
+`python3 <suite>/okf.py validate <bundle>` on a v0.1 bundle stays green
+(v0.2 is permissive) but reports every leftover as a warning — legacy
+`timestamp`, `# Citations` sections, `okf_version: "0.1"`, `status`
+values outside the spec's vocabulary. Work through them:
+
+1. **`timestamp` → `generated: { by, at }`** (§13.1). `at` is the old
+   timestamp value. `by` is the actual producer — git history
+   (`git log --format='%an %ad' -- <file>`) or the bundle's own
+   provenance keys tell you; people become `human:<id>`, tools
+   `<tool>/<version>`. If the producer is genuinely unknowable, keep
+   `timestamp` and leave `generated` absent (consumers fall back to it)
+   — never fabricate an actor.
+2. **`# Citations` → `sources`** (§13.1). One entry per citation with an
+   `id`; convert `[1]`-style references in the body to `[^id]` footnotes
+   with matching definitions; delete the section.
+3. **`status` outside `draft | stable | deprecated`** (§5.4). Either map
+   the producer's vocabulary onto the spec's (e.g. `proposed → draft`,
+   `ratified → stable`) or move it to a producer key of its own
+   (`decision_status:`) so `status` keeps its spec meaning.
+4. **Timestamps without an offset** (`2026-06-01`, `2026-06-01T09:00`):
+   add the offset the source actually meant (`T00:00:00Z` for a date).
+5. Bump the root `index.md` to `okf_version: "0.2"`, then log the
+   migration.
 
 ## Always finish the same way
 
@@ -70,7 +105,7 @@ python3 <suite>/okf.py validate <bundle>
 
 (`<suite>` is the install root: `${CLAUDE_PLUGIN_ROOT}` for Claude plugin installs, the repo clone path for Codex.)
 
-Broken links that existed before your change are tolerable (spec §5.3);
+Broken links that existed before your change are tolerable (spec §6.1);
 broken links your change *introduced* are not — fix those. Then log the
 transformation in `log.md` (newest first, `## YYYY-MM-DD`):
 
@@ -78,4 +113,5 @@ transformation in `log.md` (newest first, `## YYYY-MM-DD`):
 ## 2026-07-01
 * **Update**: Ingested the v2 queue design doc as [Queue Design](/designs/queue.md) + two [decisions](/decisions/).
 * **Update**: Moved `notes/retry.md` → [Retry Policy](/decisions/retry-policy.md); inbound links rewritten.
+* **Update**: Migrated the bundle to OKF v0.2 — `timestamp` → `generated`, citations → `sources`.
 ```

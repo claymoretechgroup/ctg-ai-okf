@@ -5,23 +5,33 @@ description: Create Open Knowledge Format (OKF) bundles and author new concept d
 
 # OKF Create
 
-Author new knowledge as OKF v0.1 concepts. A bundle is a directory of
+Author new knowledge as OKF v0.2 concepts. A bundle is a directory of
 markdown files; a concept is one file. The full spec is vendored in this
 suite at `spec/SPEC.md` (pinned from upstream knowledge-catalog — see
 `spec/NOTICE.md`). The rules below are the working digest — read the
 spec only for edge cases.
 
-## Core rules (OKF v0.1)
+## Core rules (OKF v0.2)
 
 - Every concept file needs YAML frontmatter with a non-empty `type`.
-  That is the only hard requirement; everything else is soft guidance.
+  That is the only hard requirement (§11); everything else is soft
+  guidance — but when you *use* the provenance, trust, or lifecycle
+  families (§5), use them as specified, because consumers derive trust
+  and staleness from them mechanically.
 - `index.md` and `log.md` are reserved at every directory level — never
   use them for concepts. `index.md` carries frontmatter only at the
-  bundle root (for `okf_version: "0.1"`).
+  bundle root (for `okf_version: "0.2"`).
 - Concept ID = file path minus `.md` (`tables/users.md` → `tables/users`).
 - Cross-link with normal markdown links; prefer bundle-relative form
   (`/tables/users.md`) — it survives moves of the *linking* document.
-- Broken links are legal: they mark not-yet-written knowledge.
+- Broken links are legal (§6.1): they mark not-yet-written knowledge.
+- Every timestamp is an ISO 8601 datetime **with an explicit offset**
+  (`2026-08-31T14:00:00Z`); a bare date is not a timestamp (§5).
+- Actors (§7): `<producer>/<version>` for agents and tools,
+  `human:<id>` for people, `process:<id>` for automation. You are an
+  agent — write yourself as e.g. `claude-code/<model>` or
+  `codex/<model>`, never as `human:`; consumers key trust tiers off the
+  `human:` prefix.
 
 ## Workflow
 
@@ -33,11 +43,13 @@ root `index.md`) before creating one. To initialize a new bundle:
 
 ```
 <bundle>/
-└── index.md        # frontmatter: okf_version: "0.1"
+└── index.md        # frontmatter: okf_version: "0.2"
 ```
 
 Organize subdirectories by whatever suits the domain (`tables/`,
 `playbooks/`, `references/`, `decisions/` …) — the spec imposes nothing.
+`references/` is the conventional home for mirrored external material,
+run instructions, and attester code (§6.3).
 
 **When initializing a NEW bundle, finish by wiring the project** so
 every future session is bundle-aware without being told. Offer to add
@@ -71,23 +83,57 @@ title: <Human-readable display name>
 description: <One sentence — this feeds indexes, search snippets, previews>
 resource: <Canonical URI of the underlying asset — omit for abstract concepts>
 tags: [<short>, <cross-cutting>, <labels>]
-timestamp: <ISO 8601 — the SOURCE's date (publication/creation/last-true),
-  not the build date. Provenance rule (Phase 5b, from the RFC flight's F3:
-  build-dated concepts made every direction hint uninformative): when
-  distilling from an artifact, carry the artifact's own date; fall back to
-  `date -u +%Y-%m-%dT%H:%M:%SZ` only for knowledge born in this session>
+generated: { by: <you, e.g. claude-code/<model>>, at: <now — date -u +%Y-%m-%dT%H:%M:%SZ> }
+status: <draft while incomplete or unreviewed; omit when stable>
+sources:
+  - id: <short-stable-key>
+    resource: <URL, /bundle/path.md, or a scope descriptor like "all PRs in repo X">
+    title: <Human label>
+    last_modified: <the SOURCE's own date — publication / last-true — ISO 8601>
 ---
 
 <Body: favor structural markdown — headings, tables, lists, fenced code —
-over prose walls. Agents and humans both retrieve better from structure.>
+over prose walls. Agents and humans both retrieve better from structure.
+Attribute specific claims to a source with a footnote keyed to its id:>
 
-# Citations
+The sharded tables roll daily.[^short-stable-key]
 
-[1] [Source backing a claim above](https://…)
+[^short-stable-key]: <Human label>
 ```
 
 Notes that matter:
 
+- **Two dates, two meanings.** `generated.at` is when *this concept's
+  content* last changed — the build date. The source's own date goes on
+  `sources[].last_modified`. Provenance rule (from the RFC flight's F3:
+  build-dated concepts made every direction hint uninformative): when
+  distilling from an artifact, always carry the artifact's own date in
+  `last_modified`; never let the build date stand in for it.
+- **`sources` is the provenance record** (§5.1). One entry per material
+  the concept derives from; `resource` is required, `id` whenever the
+  body cites it. Footnote labels `[^id]` are the join key — keyed, not
+  positional, so reordering never misattributes. There is no
+  `# Citations` section in v0.2.
+- **`verified` records what actually happened** (§5.2). Only add a
+  verification event for a confirmation that took place: if the user
+  reviewed and confirmed the concept in-session, add
+  `verified: { by: human:<id>, at: <now> }`; record yourself as a
+  verifier only after actually checking the content against its sources
+  or `resource`. Absent `verified` means *unverified* — that is honest,
+  not a defect. Never write `human:` for an agent check.
+- **`status`** (§5.4): `draft` while incomplete or unreviewed; omit (=
+  `stable`) when ready; `deprecated` when replaced but kept for links and
+  history. **`stale_after`** (§5.5): set only when the knowledge has a
+  known expiry (a quarter's figures, a rate limit, a config known to be
+  changing) — an absolute instant, never a relative TTL.
+- **Attested Computation** (§10): when the concept *is* a sanctioned
+  computation whose output consumers must be able to verify (a SQL, dbt,
+  or Python definition of a number), use `type: Attested Computation`
+  with `runtime` (required), typed `parameters`, the computation either
+  inline under `# Computation` or at a `computation:` path, and
+  `executor`/`attester` resources. A Metric that *uses* the number links
+  to the computation rather than embedding SQL. Read §10 before writing
+  one.
 - `type` values aren't registered anywhere; pick something descriptive
   and reuse the same value for the same kind of thing within a bundle —
   consumers filter and route on it.
@@ -117,20 +163,21 @@ Notes that matter:
 - **Supersession: declare replacement at write time.** If this concept
   replaces an existing one, declare it —
   `supersedes: [/path/to/old-concept.md]` (bundle-absolute paths, list
-  form). "Current" is derived from these links, never a status field;
-  recall systems typically treat superseded concepts as non-current, and the old concept stays in
-  place as walkable history (never delete or stub it). Optional
-  `slot: <name>` declares mutual exclusivity: no two *current*
-  concepts may share a slot. Only
-  declare a slot where exclusivity is real — most concepts accumulate
-  and never conflict.
+  form) — and set `status: deprecated` on the old concept in the same
+  change, so v0.2 consumers see it without walking the graph. The link
+  stays the walkable history; the old concept stays in place (never
+  delete or stub it). Optional `slot: <name>` declares mutual
+  exclusivity: no two *current* concepts may share a slot. Only declare
+  a slot where exclusivity is real — most concepts accumulate and never
+  conflict.
 - Always write a `description`. Index generation and recall both degrade
   without it.
 - Conventional body headings, when applicable: `# Schema` (columns or
-  fields of an asset), `# Examples` (fenced code), `# Citations`
-  (numbered external sources, at the bottom).
+  fields of an asset), `# Examples` (fenced code), `# Computation` (an
+  Attested Computation's inline computation).
 - Extra frontmatter keys are welcome (producers may extend freely), but
-  don't invent a key for something the body can say.
+  don't invent a key for something the body can say, and don't reuse a
+  spec key (`status`, `sources`, `generated`, …) with your own meaning.
 - Link related concepts as you write — links to concepts that don't
   exist yet are how the bundle grows deliberately.
 
@@ -158,4 +205,7 @@ python3 <suite>/okf.py validate <bundle>
 ```
 
 Fix any violation before finishing — conformance is the cheap oracle
-that keeps a bundle machine-consumable; don't leave it red.
+that keeps a bundle machine-consumable; don't leave it red. Warnings
+about the families you just wrote (a timestamp without an offset, an
+actor outside the convention, a footnote with no matching source id)
+are cheap to fix now and expensive to find later — fix those too.
