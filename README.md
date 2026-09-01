@@ -24,16 +24,29 @@ title: Use SQLite for the job queue
 type: Decision
 tags: [architecture, persistence]
 description: Why the job queue is SQLite rather than Redis.
+generated: { by: claude-code/claude-fable-5, at: 2026-08-31T14:00:00Z }
+sources:
+  - id: bench
+    resource: /findings/queue-benchmark.md
+    title: Queue benchmark
 ---
-We chose SQLite because … Standard markdown links to
-[related concepts](/decisions/related-concept.md) weave the bundle
-into a navigable graph.
+We chose SQLite because it won the benchmark.[^bench] Standard
+markdown links to [related concepts](/decisions/related-concept.md)
+weave the bundle into a navigable graph.
+
+[^bench]: Queue benchmark
 ```
 
 Directories group concepts by kind (`decisions/`, `findings/`,
 `ideas/`, …); each directory carries an `index.md` so the bundle is
-browsable; internal markdown links make it a graph. The full
-specification is vendored at [spec/SPEC.md](spec/SPEC.md) (OKF v0.1).
+browsable; internal markdown links make it a graph. Optional
+frontmatter families make an agent-maintained bundle *trustable*:
+`sources` (provenance, with `[^id]` footnotes attributing claims),
+`generated` / `verified` (who wrote it, who confirmed it — trust tiers
+derive from the `human:` prefix), `status` / `stale_after` (lifecycle),
+and `Attested Computation` concepts carrying a sanctioned way to
+compute a number. The full specification is vendored at
+[spec/SPEC.md](spec/SPEC.md) (OKF v0.2).
 
 ## Install
 
@@ -96,7 +109,9 @@ python3 test/run.py
 
 The suite drives the Python tools natively and byte-compares their
 outputs against the individually ledgered receipts in
-`test/receipts/old/`.
+`test/receipts/old/`. After an intentional output change,
+`python3 test/run.py --accept` rewrites the receipts from current
+output — review the result with `git diff` before committing.
 
 ## Skills
 
@@ -107,8 +122,8 @@ the skill handles the format:
 | Skill | What it does | Say things like |
 |---|---|---|
 | **okf-create-node** | Starts new bundles and authors new concepts from scratch — correct frontmatter, the right directory, index and log kept current as part of the write. Initializing a bundle includes wiring the project's `CLAUDE.md`/`AGENTS.md`. | "start a knowledge bundle", "add this decision to the bundle", "document this as a concept" |
-| **okf-transform** | Ingests *existing* artifacts (design docs, specs, READMEs, meeting notes) into a bundle, and restructures bundles — move, rename, split, merge, with every internal link rewritten. | "OKF-ify this design doc", "import these notes into the bundle", "split this concept in two" |
-| **okf-validate** | The health check: spec conformance, stale indexes, broken links, tag/type inventory against the bundle's registries, and the HTML graph view. Run after anything mutates a bundle; installs the pre-commit/CI gate on request. | "is the bundle healthy?", "validate and reindex", "gate the bundle", "show me the graph" |
+| **okf-transform** | Ingests *existing* artifacts (design docs, specs, READMEs, meeting notes) into a bundle, restructures bundles — move, rename, split, merge, with every internal link rewritten — and migrates v0.1 bundles to v0.2. | "OKF-ify this design doc", "import these notes into the bundle", "split this concept in two", "upgrade the bundle to v0.2" |
+| **okf-validate** | The health check: spec conformance including the v0.2 families, stale indexes, broken links and dangling paths, tag/type inventory against the bundle's registries, and the HTML graph view. Run after anything mutates a bundle; installs the pre-commit/CI gate on request. | "is the bundle healthy?", "validate and reindex", "gate the bundle", "show me the graph" |
 
 The skills are agent-neutral markdown — Claude loads them through the
 plugin; Codex reads the same files per [AGENTS.md](AGENTS.md). In a
@@ -122,12 +137,12 @@ equally usable by hand or in CI:
 
 | Command | What it does | Why / when |
 |---|---|---|
-| `python3 okf.py validate <bundle>` | Spec conformance (§9): parseable frontmatter, required fields, reserved-name rules. **Exit 1 on violations.** | The hard gate — wire it into CI or a pre-commit hook if the bundle matters. |
+| `python3 okf.py validate <bundle>` | Spec conformance (§11): parseable frontmatter, non-empty `type`, reserved-name rules — plus the family rules when a family is present (§5, §7, §10): `generated.by`, `verified[].by`, `sources[].resource`, `runtime` on an Attested Computation. **Exit 1 on violations.** Timestamps without an offset, actors outside the convention, non-spec `status`, orphan footnotes, and v0.1 leftovers (`timestamp`, `# Citations`) are warnings. | The hard gate — wire it into CI or a pre-commit hook if the bundle matters. |
 | `python3 okf.py index <bundle> [--write]` | Reports stale `index.md` files; `--write` regenerates them. | Run after adding or moving concepts so the bundle stays browsable. |
-| `python3 okf.py links <bundle>` | Lists broken internal links. Informational, always exit 0. | OKF §5.3 tolerates broken links as markers for not-yet-written knowledge — review, don't auto-fix. |
+| `python3 okf.py links <bundle>` | Lists broken internal links and dangling path-valued fields (`computation`, `executor.resource`, `attester.resource`, explicit-path `sources[].resource`). Informational, always exit 0. | OKF §6.1 tolerates broken links as markers for not-yet-written knowledge — review, don't auto-fix. |
 | `python3 okf.py types <bundle> [--taxonomy <file>]` | Inventories every `type:` in use; with a taxonomy (given or the bundle's own), exit 1 on unregistered types. | Keeps the type vocabulary controlled so consumers can filter and route on it. |
 | `python3 okf.py tags <bundle> [--registry <file>]` | Inventories every tag in use; with a registry (given or the bundle's own), exit 1 on unregistered tags. | Keeps labels useful as routing keys instead of decaying into one-tag-per-concept. |
-| `python3 viz.py <bundle> [--out <path>] [--name <title>]` | Renders the bundle as an interactive graph — concepts as nodes, links as edges. | Single self-contained HTML file, no external assets — open it in any browser. |
+| `python3 viz.py <bundle> [--out <path>] [--name <title>]` | Renders the bundle as an interactive graph — concepts as nodes, links as edges, source derivations as dashed edges; status / trust-tier / stale chips and a provenance block per concept. | Single self-contained HTML file, no external assets — open it in any browser. |
 
 ## Layout
 
@@ -136,11 +151,22 @@ okf.py           the statics commands (validate/links/index/types/tags)
 viz.py           the HTML graph visualizer
 skills/          the three skills — agent-neutral, the ONE copy read
                  by both models
-spec/            vendored OKF v0.1 specification
+spec/            vendored OKF v0.2 specification
 test/            fixture bundles + byte-parity receipts + run.py
 .claude-plugin/  Claude wiring (marketplace + plugin manifest)
 AGENTS.md        the Codex contract
 ```
+
+## Upgrading from v0.1
+
+Release `v0.1.0` of this repo targets OKF v0.1; `v0.2.0` and later
+target OKF v0.2. The tools stay permissive: a v0.1 bundle still
+validates green, with its leftovers reported as warnings (legacy
+`timestamp`, `# Citations`, `okf_version: "0.1"`). To bring a bundle
+forward, ask okf-transform to *"upgrade the bundle to v0.2"* — it maps
+`timestamp` → `generated`, citations → `sources` + footnotes, and bumps
+`okf_version`. The two spec-level breaking changes and the additive
+families are summarized in [spec/SPEC.md §13](spec/SPEC.md).
 
 ## License
 

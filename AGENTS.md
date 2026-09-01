@@ -20,3 +20,6 @@ python3 test/run.py
 
 Acceptance means all Python commands byte-match the verification
 receipts committed under `test/receipts/`.
+After an intentional output change, `python3 test/run.py --accept`
+rewrites the receipts from current output; review the diff before
+committing.
