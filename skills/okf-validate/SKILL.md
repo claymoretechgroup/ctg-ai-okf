@@ -58,9 +58,25 @@ or a deliberate marker for not-yet-written knowledge:
 
 `links` also reports path-valued frontmatter that points nowhere
 (`computation`, `executor.resource`, `attester.resource`, and the
-explicit-path forms of `resource` / `sources[].resource`, §6.2). Those
-are usually mistakes, not markers — an attester that doesn't exist
-can't attest anything.
+explicit-path forms of `resource` / `sources[].resource`, §6.2), in two
+groups: targets inside the bundle (`missing:` — usually a mistake, an
+attester that doesn't exist can't attest anything) and targets that
+escape the bundle root (`EXTERNAL MISSING:` — a distilled-from file that
+is not there; provenance breakage, and the one case where `links` exits
+1). Remember that `../x` resolves from the concept's own directory, not
+the bundle root, so a wrong `../` depth is the usual cause.
+
+`links --dangling` groups every unresolved internal target by directory
+with its reference count and referrers — use it when several writers
+are converging on slugs, to see which not-yet-written concepts are
+being pointed at most.
+
+Footnote markers inside fenced blocks or inline code are not references
+and are not checked; only prose `[^id]` must match a `sources[].id`.
+
+A legacy `timestamp` warning means: the concept's own change time is
+`generated.at`, and the date of the thing described belongs in
+`sources[].last_modified` — do not drop the date, move it.
 
 Never “fix” a broken link by deleting it just to make the report quiet.
 
@@ -71,10 +87,13 @@ sections, update it by hand instead of overwriting it.
 
 **Tag and type sweeps are inventory plus optional registry checks.**
 When a registry/taxonomy authority exists, unregistered values are hard
-failures. Near-duplicate tags, unused registry entries, and misplaced
-typed files are review signals, not automatic edits.
+failures. Single-use tags, near-duplicate tags, unused registry entries,
+and misplaced typed files are review signals, not automatic edits — a
+registered tag used once in a small bundle is fine.
 
-`viz.py` writes `<bundle>/viz.html` by default: a self-contained graph
+`viz.py` writes `<bundle>/viz.html` by default (`--exclude-type <T>`,
+repeatable, drops a type and its edges for a lighter view of a large
+bundle; `--exclude-edge link|source` drops an edge kind): a self-contained graph
 view colored by `type`, with detail panel, backlinks, search, and type
 filters. v0.2 families show as chips (status, trust tier, stale) and a
 provenance block (generated / verified / stale_after / sources);

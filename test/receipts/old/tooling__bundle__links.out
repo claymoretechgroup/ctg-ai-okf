@@ -1,0 +1,8 @@
+broken: ideas/distilled.md -> /ideas/not-yet.md
+broken: ideas/distilled.md -> /ideas/later.md
+broken: ideas/legacy.md -> /ideas/not-yet.md
+EXTERNAL MISSING: ideas/distilled.md -> sources[0].resource: ../../md/paper.md
+
+3 broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)
+0 path-valued field(s) pointing nowhere inside the bundle (SPEC §6.2)
+1 path-valued field(s) escaping the bundle with no file there (provenance breakage)

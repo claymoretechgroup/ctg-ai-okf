@@ -52,16 +52,19 @@ def main(argv):
         bundle = os.path.join(HERE, "fixtures", fixture)
         produced = []  # (produced path, receipt name)
 
+        extra = (row.get("args") or "").split()
+        suffix = command + ("__" + "_".join(a.lstrip("-") for a in extra) if extra else "")
+
         if command == "viz":
-            stdout_path = os.path.join(TMP, f"{stem}__viz.out")
-            html_path = os.path.join(TMP, f"{stem}__viz.html")
-            result = run_cmd([VIZ, bundle, "--out", html_path])
+            stdout_path = os.path.join(TMP, f"{stem}__{suffix}.out")
+            html_path = os.path.join(TMP, f"{stem}__{suffix}.html")
+            result = run_cmd([VIZ, bundle, "--out", html_path, *extra])
             with open(stdout_path, "wb") as fh:
                 fh.write(result.stdout)
             produced = [(stdout_path, row["stdout"]), (html_path, row["artifact"])]
         else:
-            result = run_cmd([OKF, command, bundle])
-            stdout_path = os.path.join(TMP, f"{stem}__{command}.out")
+            result = run_cmd([OKF, command, bundle, *extra])
+            stdout_path = os.path.join(TMP, f"{stem}__{suffix}.out")
             with open(stdout_path, "wb") as fh:
                 fh.write(result.stdout)
             produced = [(stdout_path, row["stdout"])]

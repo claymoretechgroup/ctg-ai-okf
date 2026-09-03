@@ -1,0 +1,8 @@
+ideas/
+    2  ideas/not-yet.md
+         <- ideas/distilled.md
+         <- ideas/legacy.md
+    1  ideas/later.md
+         <- ideas/distilled.md
+
+2 dangling target(s), 3 reference(s)

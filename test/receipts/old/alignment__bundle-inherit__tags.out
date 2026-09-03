@@ -1,5 +1,5 @@
-2 concept(s), 1 tag assignment(s), 1 distinct tag(s), 1 orphan(s)
+2 concept(s), 1 tag assignment(s), 1 distinct tag(s), 1 single-use
 no registry found (looked for /home/mastergray/claymoretechgroup/github/projects/ctg-ai-okf/test/fixtures/alignment/bundle-inherit/decisions/tag-vocabulary.md) — inventory only
 
-orphans (single use):
+single use (inventory, not a defect):
   legacy-term  (ideas/legacy-plan.md)

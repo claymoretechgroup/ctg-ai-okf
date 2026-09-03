@@ -1,0 +1,4 @@
+usage: okf.py validate <bundle-dir>
+
+Spec conformance (SPEC §11 plus the §5/§7/§10 family rules). Prints
+warnings then VIOLATION lines. Exit 1 when any violation exists.

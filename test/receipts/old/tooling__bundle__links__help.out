@@ -1,0 +1,9 @@
+usage: okf.py links <bundle-dir> [--dangling]
+
+Unresolved targets in three groups: broken body links (tolerated, §6.1),
+path-valued fields pointing nowhere inside the bundle, and path-valued
+fields that escape the bundle root and find no file (provenance
+breakage). Exit 1 only for the external group.
+
+options:
+  --dangling           group unresolved internal targets by directory with the files that reference them

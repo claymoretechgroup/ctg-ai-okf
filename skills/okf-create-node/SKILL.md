@@ -24,6 +24,14 @@ spec only for edge cases.
 - Concept ID = file path minus `.md` (`tables/users.md` → `tables/users`).
 - Cross-link with normal markdown links; prefer bundle-relative form
   (`/tables/users.md`) — it survives moves of the *linking* document.
+- **Path forms (§6.2), and where they start from:** `/x` starts at the
+  bundle root; `./x` and `../x` start at the *concept file's own
+  directory* (markdown semantics), never at the bundle root. So a source
+  outside the bundle is written file-relative from the concept — a
+  concept at `<bundle>/ideas/foo.md` distilled from `<parent>/md/paper.md`
+  writes `resource: ../../md/paper.md`. `okf.py links` reports such a
+  path separately when the file is missing (provenance breakage, exit 1)
+  rather than as a tolerated broken link.
 - Broken links are legal (§6.1): they mark not-yet-written knowledge.
 - Every timestamp is an ISO 8601 datetime **with an explicit offset**
   (`2026-08-31T14:00:00Z`); a bare date is not a timestamp (§5).
@@ -87,7 +95,7 @@ generated: { by: <you, e.g. claude-code/<model>>, at: <now — date -u +%Y-%m-%d
 status: <draft while incomplete or unreviewed; omit when stable>
 sources:
   - id: <short-stable-key>
-    resource: <URL, /bundle/path.md, or a scope descriptor like "all PRs in repo X">
+    resource: <URL, /bundle/path.md, ../../outside/file.md (file-relative), or a scope descriptor like "all PRs in repo X">
     title: <Human label>
     last_modified: <the SOURCE's own date — publication / last-true — ISO 8601>
 ---

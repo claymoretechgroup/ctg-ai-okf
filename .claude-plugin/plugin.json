@@ -1,7 +1,7 @@
 {
   "name": "okf",
   "displayName": "OKF Statics",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Open Knowledge Format statics for creating, transforming, validating, indexing, and visualizing OKF bundles.",
   "author": {
     "name": "Claymore Technology Group",

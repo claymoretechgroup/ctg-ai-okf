@@ -1,117 +1,8 @@
-#!/usr/bin/env python3
-"""viz.py - zero-dependency OKF v0.2 bundle visualizer."""
-
-import json
-import os
-import re
-import sys
-
-from okf import LINK_RE, URL_RE, normalize_verified, read_doc, resolve_path, sources_of, status_of, trust_tier, walk
-
-
-PALETTE = ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f",
-           "#edc949", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]
-
-
-def rel(root, path):
-    return os.path.relpath(path, root).replace(os.sep, "/")
-
-
-def concept_id(root, abs_path, by_id):
-    if not os.path.exists(abs_path) or not abs_path.endswith(".md"):
-        return None
-    target_id = re.sub(r"\.md$", "", rel(root, abs_path))
-    return target_id if target_id in by_id else None
-
-
-def build_graph(bundle):
-    root = os.path.realpath(bundle)
-    nodes = []
-    by_id = {}
-    for path in walk(root):
-        if os.path.basename(path) == "index.md":
-            continue
-        node_id = re.sub(r"\.md$", "", rel(root, path))
-        try:
-            doc = read_doc(path)
-        except Exception:
-            with open(path, "r", encoding="utf-8") as fh:
-                doc = {"frontmatter": None, "body": fh.read()}
-        fm = doc["frontmatter"] if isinstance(doc.get("frontmatter"), dict) else {}
-        generated = fm.get("generated") if isinstance(fm.get("generated"), dict) else None
-        node = {
-            "id": node_id,
-            "path": path,
-            "type": fm["type"] if isinstance(fm.get("type"), str) and fm.get("type") else ("Log" if os.path.basename(path) == "log.md" else "Untyped"),
-            "title": fm.get("title") or os.path.splitext(os.path.basename(path))[0],
-            "description": fm.get("description") or "",
-            "tags": fm.get("tags") if isinstance(fm.get("tags"), list) else [],
-            "resource": fm.get("resource") if isinstance(fm.get("resource"), str) else "",
-            "status": status_of(fm),
-            "trust": trust_tier(fm),
-            "generated": {"by": str(generated.get("by") or ""), "at": str(generated.get("at") or "")} if generated else None,
-            "verified": [{"by": str(e.get("by") or ""), "at": str(e.get("at") or "")} for e in normalize_verified(fm)],
-            "stale_after": fm.get("stale_after") if isinstance(fm.get("stale_after"), str) else "",
-            "runtime": fm.get("runtime") if isinstance(fm.get("runtime"), str) else "",
-            "sources": [
-                {"id": str(s.get("id") or ""), "resource": str(s.get("resource") or ""), "title": str(s.get("title") or "")}
-                for s in sources_of(fm)
-            ],
-            "timestamp": fm.get("timestamp") or "",
-            "body": doc["body"],
-        }
-        nodes.append(node)
-        by_id[node_id] = node
-
-    edges = []
-    seen = set()
-
-    def add_edge(source, target, kind):
-        key = f"{source} -> {target} [{kind}]"
-        if target is None or target == source or key in seen:
-            return
-        seen.add(key)
-        edges.append({"source": source, "target": target, "kind": kind})
-
-    for node in nodes:
-        path = node.pop("path")
-        dir_path = os.path.dirname(path)
-        for match in LINK_RE.finditer(node["body"]):
-            target = match.group(1).split("#", 1)[0]
-            if target == "" or URL_RE.match(target):
-                continue
-            abs_path = os.path.join(root, target.lstrip("/")) if target.startswith("/") else os.path.realpath(os.path.join(dir_path, target))
-            add_edge(node["id"], concept_id(root, abs_path, by_id), "link")
-        for src in node["sources"]:
-            target = src["resource"]
-            if target == "" or URL_RE.match(target) or " " in target:
-                continue
-            for candidate in resolve_path(root, path, target):
-                tid = concept_id(root, candidate, by_id)
-                if tid:
-                    src["concept"] = tid
-                    add_edge(node["id"], tid, "source")
-                    break
-    return {"nodes": nodes, "edges": edges}
-
-
-def escape_html(value):
-    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-
-def render(name, graph):
-    types = sorted(set(n["type"] for n in graph["nodes"]))
-    colors = {t: PALETTE[i % len(PALETTE)] for i, t in enumerate(types)}
-    data = {"name": name, "types": types, "colors": colors, **graph}
-    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
-    return TEMPLATE.replace("__TITLE__", escape_html(name)).replace("__DATA__", encoded)
-
-
-TEMPLATE = r"""<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>__TITLE__ — OKF bundle</title>
+<title>bundle — OKF bundle</title>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <style>
@@ -173,7 +64,7 @@ TEMPLATE = r"""<!DOCTYPE html>
 <div id="cy"></div>
 <div id="detail"><div class="placeholder">Select a concept</div></div>
 <script>
-var DATA = __DATA__;
+var DATA = {"name":"bundle","types":["Decision","Idea","Reference"],"colors":{"Decision":"#4e79a7","Idea":"#f28e2b","Reference":"#e15759"},"nodes":[{"id":"decisions/bundle-conventions","type":"Decision","title":"Bundle conventions","description":"How footnotes are written in this bundle.","tags":["conventions","provenance"],"resource":"","status":"stable","trust":"unverified","generated":{"by":"claude-code/test","at":"2026-09-01T10:00:00Z"},"verified":[],"stale_after":"","runtime":"","sources":[{"id":"spec","resource":"https://example.test/okf/SPEC.md","title":"OKF spec"}],"timestamp":"","body":"# Bundle conventions\n\nCite a source with a footnote marker written as `[^text]` after the claim,\nwhere `text` is the `sources[].id`. The marker in this sentence is prose\nonly when it is not inside code; this one is real.[^spec]\n\n```markdown\nDocumented example: a claim.[^example]\n```\n"},{"id":"ideas/distilled","type":"Idea","title":"Distilled from outside the bundle","description":"A concept whose source lives outside the bundle root.","tags":["conventions","distilled"],"resource":"","status":"stable","trust":"unverified","generated":{"by":"claude-code/test","at":"2026-09-01T10:00:00Z"},"verified":[],"stale_after":"","runtime":"","sources":[{"id":"paper","resource":"../../md/paper.md","title":"The paper (outside the bundle)"},{"id":"note","resource":"/references/note.md","title":"A note that exists","concept":"references/note"}],"timestamp":"","body":"# Distilled\n\nDerived from the paper.[^paper] See the [note](/references/note.md), the\n[missing idea](/ideas/not-yet.md), and [another gap](/ideas/later.md).\n"},{"id":"ideas/legacy","type":"Idea","title":"Legacy dated idea","description":"A v0.1-style concept carrying a timestamp for the source's date.","tags":["conventions"],"resource":"","status":"stable","trust":"unverified","generated":null,"verified":[],"stale_after":"","runtime":"","sources":[],"timestamp":"2024-03-01T00:00:00Z","body":"# Legacy dated idea\n\nLinks to [bundle conventions](/decisions/bundle-conventions.md) and to a\n[missing idea](/ideas/not-yet.md).\n"},{"id":"references/note","type":"Reference","title":"A note","description":"An in-bundle reference target.","tags":["reference-only"],"resource":"","status":"stable","trust":"unverified","generated":{"by":"claude-code/test","at":"2026-09-01T10:00:00Z"},"verified":[],"stale_after":"","runtime":"","sources":[],"timestamp":"","body":"# A note\n\nPoints back at [distilled](/ideas/distilled.md).\n"}],"edges":[{"source":"ideas/distilled","target":"references/note","kind":"link"},{"source":"ideas/distilled","target":"references/note","kind":"source"},{"source":"ideas/legacy","target":"decisions/bundle-conventions","kind":"link"},{"source":"references/note","target":"ideas/distilled","kind":"link"}]};
 var NOW = Date.now();
 document.getElementById('bname').textContent = DATA.name;
 document.getElementById('bmeta').textContent = DATA.nodes.length + ' concepts · ' + DATA.edges.length + ' links';
@@ -374,62 +265,3 @@ cy.on('tap', 'node', function (ev) { show(ev.target.id()); });
 </script>
 </body>
 </html>
-"""
-
-
-def opt(args, flag, default):
-    try:
-        i = args.index(flag)
-        if i + 1 < len(args):
-            return args[i + 1]
-    except ValueError:
-        pass
-    return default
-
-
-def opts(args, flag):
-    """Every value given for a repeatable flag."""
-    return [args[i + 1] for i, a in enumerate(args[:-1]) if a == flag]
-
-
-def filter_graph(graph, exclude_types, exclude_kinds):
-    """Drop nodes of the excluded types (and every edge touching them) and
-    edges of the excluded kinds, before serialization, so the inline data
-    shrinks with the view."""
-    if not exclude_types and not exclude_kinds:
-        return graph
-    dropped = set(n["id"] for n in graph["nodes"] if n["type"] in exclude_types)
-    nodes = [n for n in graph["nodes"] if n["id"] not in dropped]
-    edges = [
-        e for e in graph["edges"]
-        if e["source"] not in dropped and e["target"] not in dropped and e["kind"] not in exclude_kinds
-    ]
-    return {"nodes": nodes, "edges": edges}
-
-
-USAGE = (
-    "usage: viz.py <bundle-dir> [--out <path>] [--name <display name>]\n"
-    "              [--exclude-type <Type>]... [--exclude-edge <link|source>]...\n"
-)
-
-
-def main(argv):
-    if not argv or argv[0] in ("-h", "--help"):
-        (sys.stdout if argv else sys.stderr).write(USAGE)
-        return 0 if argv else 2
-    bundle = argv[0]
-    if not os.path.isdir(bundle):
-        sys.stderr.write(USAGE)
-        return 2
-    name = opt(argv, "--name", os.path.basename(os.path.realpath(bundle)))
-    out = opt(argv, "--out", os.path.join(bundle, "viz.html"))
-    graph = filter_graph(build_graph(bundle), set(opts(argv, "--exclude-type")), set(opts(argv, "--exclude-edge")))
-    html = render(name, graph)
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(html)
-    print(f"wrote {out} — {len(graph['nodes'])} concepts, {len(graph['edges'])} edges, {len(html)} bytes")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))

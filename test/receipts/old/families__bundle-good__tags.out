@@ -1,7 +1,7 @@
-9 concept(s), 6 tag assignment(s), 4 distinct tag(s), 3 orphan(s)
+9 concept(s), 6 tag assignment(s), 4 distinct tag(s), 3 single-use
 no registry found (looked for /home/mastergray/claymoretechgroup/github/projects/ctg-ai-okf/test/fixtures/families/bundle-good/decisions/tag-vocabulary.md) — inventory only
 
-orphans (single use):
+single use (inventory, not a defect):
   income-statement  (metrics/income-statement.md)
   profit  (computations/profit.md)
   revenue  (computations/revenue.md)

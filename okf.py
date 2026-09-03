@@ -298,6 +298,17 @@ def is_timestamp(value):
     return isinstance(value, str) and TIMESTAMP_RE.match(value.strip()) is not None
 
 
+FENCE_RE = re.compile(r"^(```|~~~).*?^\1[ \t]*$", re.M | re.S)
+INLINE_CODE_RE = re.compile(r"`+[^`\n]*`+")
+
+
+def strip_code(body):
+    """Body text with fenced blocks and inline code spans removed, so that
+    markers inside code (a documented `[^example]`, say) are not read as
+    references (SPEC §5.1 joins footnotes on prose references only)."""
+    return INLINE_CODE_RE.sub("", FENCE_RE.sub("", body))
+
+
 def check_families(r, fm, body, violations, warnings):
     """Family-level checks for one concept. REQUIRED-within-family fields are
     violations; format and convention problems are warnings (§11)."""
@@ -371,13 +382,13 @@ def check_families(r, fm, body, violations, warnings):
                     check_window(r, f"sources[{i}].usage_window", e.get("usage_window"), warnings)
                 elif "usage_count" in e and not has_shared_window:
                     warnings.append(f"{r}: sources[{i}].usage_count has no usage_window to frame it (SPEC §5.1)")
-    for label in sorted(set(FOOTNOTE_RE.findall(body))):
+    for label in sorted(set(FOOTNOTE_RE.findall(strip_code(body)))):
         if label not in ids:
             warnings.append(f"{r}: footnote [^{label}] has no matching sources[].id (SPEC §5.1)")
 
     # v0.1 leftovers (§13.1)
     if "timestamp" in fm:
-        warnings.append(f"{r}: legacy v0.1 timestamp — superseded by generated.at (SPEC §13.1)")
+        warnings.append(f"{r}: legacy v0.1 timestamp — the concept's own change time is generated.at; the date of the thing described belongs in sources[].last_modified (SPEC §13.1, §5.1)")
     if re.search(r"^#{1,6}\s*Citations\s*$", body, re.M):
         warnings.append(f"{r}: legacy v0.1 # Citations section — superseded by sources (SPEC §13.1)")
 
@@ -491,9 +502,27 @@ def path_fields(fm):
     return out
 
 
+def inside_root(root, candidate):
+    real = os.path.realpath(candidate)
+    return real == root or real.startswith(root + os.sep)
+
+
 def check_links(bundle):
+    """Three kinds of unresolved target, kept apart because they mean
+    different things (SPEC §6.1 vs §6.2):
+
+    - `links`: a body link to a concept that does not exist — tolerated,
+      may be not-yet-written knowledge.
+    - `fields`: a path-valued frontmatter field pointing inside the bundle
+      at nothing — usually a mistake.
+    - `external`: a path-valued field that escapes the bundle root and
+      finds no file there — provenance breakage, never a placeholder.
+
+    `dangling` maps each unresolved internal target to the files that
+    reference it, for the parallel-authoring convergence report."""
     root = os.path.realpath(bundle)
-    broken = []
+    links, fields, external = [], [], []
+    dangling = {}
     for path in walk(root):
         try:
             doc = read_doc(path)
@@ -503,8 +532,11 @@ def check_links(bundle):
             target = m.group(1).split("#", 1)[0]
             if target == "" or URL_RE.match(target):
                 continue
-            if not exists_any(resolve_path(root, path, target)[:1]):
-                broken.append(f"{rel(root, path)} -> {m.group(1)}")
+            candidate = resolve_path(root, path, target)[0]
+            if not os.path.exists(candidate):
+                links.append(f"{rel(root, path)} -> {m.group(1)}")
+                key = rel(root, candidate) if inside_root(root, candidate) else target
+                dangling.setdefault(key, []).append(rel(root, path))
         fm = doc["frontmatter"]
         if not isinstance(fm, dict):
             continue
@@ -515,9 +547,15 @@ def check_links(bundle):
             explicit = v.startswith("/") or v.startswith("./") or v.startswith("../")
             if not explicit and not unambiguous:
                 continue
-            if not exists_any(resolve_path(root, path, v)):
-                broken.append(f"{rel(root, path)} -> {label}: {value}")
-    return broken
+            candidates = resolve_path(root, path, v)
+            if exists_any(candidates):
+                continue
+            line = f"{rel(root, path)} -> {label}: {value}"
+            if any(inside_root(root, c) for c in candidates):
+                fields.append(line)
+            else:
+                external.append(line)
+    return {"links": links, "fields": fields, "external": external, "dangling": dangling}
 
 
 # --- indexes (SPEC §8) ------------------------------------------------------
@@ -635,7 +673,7 @@ def tag_report(bundle, registry_path):
             registry = parse_tag_registry(fh.read())
     registered = set(t for vals in registry.values() for t in vals) if registry else None
     tags = sorted(uses.keys())
-    orphans = [t for t in tags if len(uses[t]) == 1]
+    single_use = [t for t in tags if len(uses[t]) == 1]
     unknown = [t for t in tags if registered is not None and t not in registered]
     dupes = []
     for i, a in enumerate(tags):
@@ -646,7 +684,7 @@ def tag_report(bundle, registry_path):
     return {
         "concepts": concepts,
         "uses": uses,
-        "orphans": orphans,
+        "single_use": single_use,
         "unknown": unknown,
         "dupes": dupes,
         "unused": unused,
@@ -719,11 +757,74 @@ def type_report(bundle, taxonomy_path):
 # --- CLI ---------------------------------------------------------------------
 
 
+USAGE = {
+    "validate": (
+        "okf.py validate <bundle-dir>",
+        "Spec conformance (SPEC §11 plus the §5/§7/§10 family rules). Prints\n"
+        "warnings then VIOLATION lines. Exit 1 when any violation exists.",
+        [],
+    ),
+    "links": (
+        "okf.py links <bundle-dir> [--dangling]",
+        "Unresolved targets in three groups: broken body links (tolerated, §6.1),\n"
+        "path-valued fields pointing nowhere inside the bundle, and path-valued\n"
+        "fields that escape the bundle root and find no file (provenance\n"
+        "breakage). Exit 1 only for the external group.",
+        [("--dangling", "group unresolved internal targets by directory with the files that reference them")],
+    ),
+    "index": (
+        "okf.py index <bundle-dir> [--write]",
+        "Report stale index.md files (SPEC §8); regenerate them with --write.",
+        [("--write", "rewrite every stale index.md in place")],
+    ),
+    "tags": (
+        "okf.py tags <bundle-dir> [--registry <file>]",
+        "Tag inventory: single-use tags, near-duplicate candidates, and — when a\n"
+        "registry exists — registered-but-unused and UNREGISTERED tags. Exit 1\n"
+        "only for unregistered tags.",
+        [("--registry <file>", "tag registry (default <bundle>/decisions/tag-vocabulary.md)")],
+    ),
+    "types": (
+        "okf.py types <bundle-dir> [--taxonomy <file>]",
+        "Type inventory; with a taxonomy, misplaced files are warnings and\n"
+        "UNREGISTERED types exit 1.",
+        [("--taxonomy <file>", "type taxonomy (default <bundle>/decisions/type-taxonomy.md)")],
+    ),
+}
+
+
+def usage(cmd=None, stream=None):
+    stream = stream or sys.stderr
+    if cmd is None:
+        stream.write("usage: okf.py <command> <bundle-dir> [options]\n\ncommands:\n")
+        for name, (synopsis, _summary, _flags) in USAGE.items():
+            stream.write(f"  {synopsis}\n")
+        stream.write("\nrun `okf.py <command> --help` for that command's flags.\n")
+        return
+    synopsis, summary, flags = USAGE[cmd]
+    stream.write(f"usage: {synopsis}\n\n{summary}\n")
+    if flags:
+        stream.write("\noptions:\n")
+        for name, help_text in flags:
+            stream.write(f"  {name:<20} {help_text}\n")
+
+
 def main(argv):
-    if len(argv) < 2:
-        sys.stderr.write("usage: okf.py <validate|links|index|tags|types> <bundle-dir> [--write] [--registry <file>] [--taxonomy <file>]\n")
+    if not argv or argv[0] in ("-h", "--help"):
+        usage(None, sys.stdout if argv else sys.stderr)
+        return 0 if argv else 2
+    cmd = argv[0]
+    if cmd not in USAGE:
+        sys.stderr.write(f"unknown command: {cmd}\n")
+        usage()
         return 2
-    cmd, bundle, rest = argv[0], argv[1], argv[2:]
+    if "-h" in argv[1:] or "--help" in argv[1:]:
+        usage(cmd, sys.stdout)
+        return 0
+    if len(argv) < 2:
+        usage(cmd)
+        return 2
+    bundle, rest = argv[1], argv[2:]
     if not os.path.isdir(bundle):
         sys.stderr.write(f"not a directory: {bundle}\n")
         return 2
@@ -738,11 +839,29 @@ def main(argv):
         return 1 if violations else 0
 
     if cmd == "links":
-        broken = check_links(bundle)
-        for b in broken:
+        r = check_links(bundle)
+        if "--dangling" in rest:
+            by_dir = {}
+            for target, referrers in r["dangling"].items():
+                by_dir.setdefault(os.path.dirname(target) or ".", []).append((target, referrers))
+            for d in sorted(by_dir):
+                print(f"{d}/")
+                for target, referrers in sorted(by_dir[d], key=lambda kv: (-len(kv[1]), kv[0])):
+                    print(f"  {len(referrers):>3}  {target}")
+                    for f in sorted(set(referrers)):
+                        print(f"         <- {f}")
+            print(f"\n{len(r['dangling'])} dangling target(s), {sum(len(v) for v in r['dangling'].values())} reference(s)")
+            return 0
+        for b in r["links"]:
             print(f"broken: {b}")
-        print(f"\n{len(broken)} broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)")
-        return 0
+        for b in r["fields"]:
+            print(f"missing: {b}")
+        for b in r["external"]:
+            print(f"EXTERNAL MISSING: {b}")
+        print(f"\n{len(r['links'])} broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)")
+        print(f"{len(r['fields'])} path-valued field(s) pointing nowhere inside the bundle (SPEC §6.2)")
+        print(f"{len(r['external'])} path-valued field(s) escaping the bundle with no file there (provenance breakage)")
+        return 1 if r["external"] else 0
 
     if cmd == "index":
         write = "--write" in rest
@@ -758,12 +877,12 @@ def main(argv):
         registry_path = flag(rest, "--registry", os.path.join(bundle, "decisions", "tag-vocabulary.md"))
         r = tag_report(bundle, registry_path)
         assignments = sum(len(fs) for fs in r["uses"].values())
-        print(f"{r['concepts']} concept(s), {assignments} tag assignment(s), {len(r['uses'])} distinct tag(s), {len(r['orphans'])} orphan(s)")
+        print(f"{r['concepts']} concept(s), {assignments} tag assignment(s), {len(r['uses'])} distinct tag(s), {len(r['single_use'])} single-use")
         if not r["has_registry"]:
             print(f"no registry found (looked for {registry_path}) — inventory only")
-        if r["orphans"]:
-            print("\norphans (single use):")
-            for t in r["orphans"]:
+        if r["single_use"]:
+            print("\nsingle use (inventory, not a defect):")
+            for t in r["single_use"]:
                 print(f"  {t}  ({r['uses'][t][0]})")
         if r["dupes"]:
             print("\nnear-duplicate candidates (review, not auto-merge):")

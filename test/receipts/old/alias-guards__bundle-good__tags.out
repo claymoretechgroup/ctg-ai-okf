@@ -1,6 +1,6 @@
-3 concept(s), 1 tag assignment(s), 1 distinct tag(s), 1 orphan(s)
+3 concept(s), 1 tag assignment(s), 1 distinct tag(s), 1 single-use
 
-orphans (single use):
+single use (inventory, not a defect):
   music  (ideas/delta.md)
 
 registered but unused: ai

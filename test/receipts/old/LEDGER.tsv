@@ -1,4 +1,4 @@
-fixture	command	exit	stdout	artifact
+fixture	command	exit	stdout	artifact	args
 adjacency/corpus	validate	1	adjacency__corpus__validate.out	
 adjacency/corpus	links	0	adjacency__corpus__links.out	
 adjacency/corpus	index	0	adjacency__corpus__index.out	
@@ -77,3 +77,11 @@ families/bundle-bad	index	0	families__bundle-bad__index.out
 families/bundle-bad	types	0	families__bundle-bad__types.out	
 families/bundle-bad	tags	0	families__bundle-bad__tags.out	
 families/bundle-bad	viz	0	families__bundle-bad__viz.out	families__bundle-bad__viz.html
+tooling/bundle	validate	0	tooling__bundle__validate.out		
+tooling/bundle	links	1	tooling__bundle__links.out		
+tooling/bundle	links	0	tooling__bundle__links__dangling.out		--dangling
+tooling/bundle	tags	0	tooling__bundle__tags.out		
+tooling/bundle	viz	0	tooling__bundle__viz__exclude-type_Reference.out	tooling__bundle__viz__exclude-type_Reference.html	--exclude-type Reference
+tooling/bundle	viz	0	tooling__bundle__viz.out	tooling__bundle__viz.html	
+tooling/bundle	validate	0	tooling__bundle__validate__help.out		--help
+tooling/bundle	links	0	tooling__bundle__links__help.out		--help

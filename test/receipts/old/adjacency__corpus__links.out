@@ -1,2 +1,4 @@
 
 0 broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)
+0 path-valued field(s) pointing nowhere inside the bundle (SPEC §6.2)
+0 path-valued field(s) escaping the bundle with no file there (provenance breakage)

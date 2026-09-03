@@ -1,7 +1,9 @@
 broken: computations/dangling.md -> ../references/skills/missing.md
-broken: computations/dangling.md -> computation: /references/missing.sql
-broken: computations/dangling.md -> executor.resource: ../references/skills/missing.md
-broken: computations/dangling.md -> attester.resource: references/attesters/missing.py
-broken: ideas/sourced.md -> sources[3].resource: /ideas/missing.md
+missing: computations/dangling.md -> computation: /references/missing.sql
+missing: computations/dangling.md -> executor.resource: ../references/skills/missing.md
+missing: computations/dangling.md -> attester.resource: references/attesters/missing.py
+missing: ideas/sourced.md -> sources[3].resource: /ideas/missing.md
 
-5 broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)
+1 broken internal link(s) (tolerated per SPEC §6.1 — may be not-yet-written knowledge)
+4 path-valued field(s) pointing nowhere inside the bundle (SPEC §6.2)
+0 path-valued field(s) escaping the bundle with no file there (provenance breakage)

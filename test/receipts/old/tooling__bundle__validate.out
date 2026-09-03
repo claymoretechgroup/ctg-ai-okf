@@ -1,0 +1,3 @@
+warning: ideas/legacy.md: legacy v0.1 timestamp — the concept's own change time is generated.at; the date of the thing described belongs in sources[].last_modified (SPEC §13.1, §5.1)
+
+0 violation(s), 1 warning(s)

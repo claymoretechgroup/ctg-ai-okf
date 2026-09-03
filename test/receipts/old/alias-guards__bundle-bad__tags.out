@@ -1,6 +1,6 @@
-6 concept(s), 3 tag assignment(s), 2 distinct tag(s), 1 orphan(s)
+6 concept(s), 3 tag assignment(s), 2 distinct tag(s), 1 single-use
 
-orphans (single use):
+single use (inventory, not a defect):
   ai  (ideas/beta.md)
 
 registered but unused: glitch-art
